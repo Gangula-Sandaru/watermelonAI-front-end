@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { Mail, Lock, ArrowRight } from 'lucide-react';
+import { Mail, Lock, ArrowRight, Loader2, User, Eye, EyeOff } from 'lucide-react';
+import { toast } from 'sonner';
 
 const WatermelonIcon = ({ className }: { className?: string }) => (
   <svg
@@ -25,13 +26,40 @@ interface LoginProps {
 }
 
 export function Login({ onLogin, onSwitchToRegister }: LoginProps) {
-  const [email, setEmail] = useState('');
+  const [usernameOrEmail, setUsernameOrEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (email && password) {
-      onLogin();
+    if (!usernameOrEmail || !password) return;
+    
+    setIsLoading(true);
+    try {
+      const response = await fetch('http://127.0.0.1:8000/api/auth/login/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+           email: usernameOrEmail, 
+           username: usernameOrEmail, // Matches username or email for flexibility
+           password: password 
+        })
+      });
+      const data = await response.json();
+      
+      if (response.ok) {
+        localStorage.setItem('access_token', data.access);
+        if (data.refresh) localStorage.setItem('refresh_token', data.refresh);
+        toast.success('Successfully logged in');
+        onLogin();
+      } else {
+        toast.error(data.detail || data.error || 'Invalid credentials');
+      }
+    } catch (err) {
+      toast.error('Network error. Ensure Django server is running.');
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -68,18 +96,18 @@ export function Login({ onLogin, onSwitchToRegister }: LoginProps) {
           <form onSubmit={handleSubmit} className="space-y-5">
             <div>
               <label className="block text-sm font-bold text-gray-700 mb-2 ml-1">
-                Email Address
+                Username or Email
               </label>
               <div className="relative group">
                 <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-gray-400 group-focus-within:text-green-600 transition-colors">
-                  <Mail className="h-5 w-5" />
+                  <User className="h-5 w-5" />
                 </div>
                 <input
-                  type="email"
+                  type="text"
                   className="pl-11 w-full px-4 py-3.5 bg-gray-50/50 border-2 border-gray-100 rounded-2xl focus:ring-0 focus:bg-white focus:border-green-500 outline-none transition-all font-medium text-gray-900 shadow-sm"
-                  placeholder="you@example.com"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="Enter your username or email"
+                  value={usernameOrEmail}
+                  onChange={(e) => setUsernameOrEmail(e.target.value)}
                   required
                 />
               </div>
@@ -99,22 +127,33 @@ export function Login({ onLogin, onSwitchToRegister }: LoginProps) {
                   <Lock className="h-5 w-5" />
                 </div>
                 <input
-                  type="password"
-                  className="pl-11 w-full px-4 py-3.5 bg-gray-50/50 border-2 border-gray-100 rounded-2xl focus:ring-0 focus:bg-white focus:border-green-500 outline-none transition-all font-medium text-gray-900 shadow-sm"
+                  type={showPassword ? 'text' : 'password'}
+                  className="pl-11 pr-12 w-full px-4 py-3.5 bg-gray-50/50 border-2 border-gray-100 rounded-2xl focus:ring-0 focus:bg-white focus:border-green-500 outline-none transition-all font-medium text-gray-900 shadow-sm"
                   placeholder="••••••••"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   required
                 />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute inset-y-0 right-0 pr-4 flex items-center text-gray-400 hover:text-green-600 transition-colors focus:outline-none"
+                >
+                  {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+                </button>
               </div>
             </div>
 
             <button
               type="submit"
-              className="w-full flex items-center justify-center gap-2 px-6 py-4 mt-8 bg-gradient-to-r from-[#2E7D32] to-green-600 text-white rounded-2xl hover:from-[#1B5E20] hover:to-green-700 transition-all font-bold shadow-lg shadow-green-900/20 hover:shadow-xl hover:shadow-green-900/30 hover:-translate-y-0.5"
+              disabled={isLoading}
+              className="w-full flex items-center justify-center gap-2 px-6 py-4 mt-8 bg-gradient-to-r from-[#2E7D32] to-green-600 text-white rounded-2xl hover:from-[#1B5E20] hover:to-green-700 transition-all font-bold shadow-lg shadow-green-900/20 hover:shadow-xl hover:shadow-green-900/30 hover:-translate-y-0.5 disabled:opacity-70 disabled:pointer-events-none"
             >
-              Sign In
-              <ArrowRight className="w-5 h-5" />
+              {isLoading ? (
+                <>Verifying... <Loader2 className="w-5 h-5 animate-spin" /></>
+              ) : (
+                <>Sign In <ArrowRight className="w-5 h-5" /></>
+              )}
             </button>
           </form>
 

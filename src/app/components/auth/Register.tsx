@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { Mail, Lock, User, ArrowRight, Sprout, Microscope, ChevronLeft } from 'lucide-react';
+import { Mail, Lock, User, ArrowRight, Sprout, Microscope, ChevronLeft, Loader2, Eye, EyeOff } from 'lucide-react';
+import { toast } from 'sonner';
 
 const WatermelonIcon = ({ className }: { className?: string }) => (
   <svg
@@ -31,11 +32,38 @@ export function Register({ onRegister, onSwitchToLogin }: RegisterProps) {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (name && email && password) {
-      onRegister();
+    if (!name || !email || !password || !role) return;
+    
+    setIsLoading(true);
+    try {
+      const response = await fetch('http://127.0.0.1:8000/api/auth/register/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+           name: name,
+           username: email, // Sending email as username to satisfy some generic Django serializers
+           email: email, 
+           password: password,
+           role: role
+        })
+      });
+      const data = await response.json();
+      
+      if (response.ok) {
+        toast.success(`Account created successfully!`);
+        onRegister();
+      } else {
+        toast.error(data.detail || data.error || data.username?.[0] || data.email?.[0] || 'Registration failed');
+      }
+    } catch (err) {
+      toast.error('Network error. Ensure Django server is running.');
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -200,24 +228,35 @@ export function Register({ onRegister, onSwitchToLogin }: RegisterProps) {
                     <Lock className="h-5 w-5" />
                   </div>
                   <input
-                    type="password"
-                    className="pl-11 w-full px-4 py-3.5 bg-gray-50/50 border-2 border-gray-100 rounded-2xl focus:ring-0 focus:bg-white focus:border-green-500 outline-none transition-all font-medium text-gray-900 shadow-sm"
+                    type={showPassword ? 'text' : 'password'}
+                    className="pl-11 pr-12 w-full px-4 py-3.5 bg-gray-50/50 border-2 border-gray-100 rounded-2xl focus:ring-0 focus:bg-white focus:border-green-500 outline-none transition-all font-medium text-gray-900 shadow-sm"
                     placeholder="••••••••"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     required
                   />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute inset-y-0 right-0 pr-4 flex items-center text-gray-400 hover:text-green-600 transition-colors focus:outline-none"
+                  >
+                    {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+                  </button>
                 </div>
               </div>
 
               <button
                 type="submit"
-                className={`w-full flex items-center justify-center gap-2 px-6 py-4 mt-8 text-white rounded-2xl transition-all font-bold shadow-lg hover:shadow-xl hover:-translate-y-0.5 ${
+                disabled={isLoading}
+                className={`w-full flex items-center justify-center gap-2 px-6 py-4 mt-8 text-white rounded-2xl transition-all font-bold shadow-lg hover:shadow-xl hover:-translate-y-0.5 disabled:opacity-70 disabled:pointer-events-none ${
                   role === 'farmer' ? 'bg-gradient-to-r from-[#2E7D32] to-green-600 hover:from-[#1B5E20] hover:to-green-700 shadow-green-900/20' : 'bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-700 hover:to-blue-600 shadow-blue-900/20'
                 }`}
               >
-                Create Account
-                <ArrowRight className="w-5 h-5" />
+                {isLoading ? (
+                  <>Processing... <Loader2 className="w-5 h-5 animate-spin" /></>
+                ) : (
+                  <>Create Account <ArrowRight className="w-5 h-5" /></>
+                )}
               </button>
             </form>
           </div>
