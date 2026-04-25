@@ -1,83 +1,60 @@
+import { useState, useEffect } from 'react';
 import { Card } from './ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from './ui/table';
-import { FileText, MapPin, Calendar } from 'lucide-react';
+import { FileText, MapPin, Calendar, Loader2 } from 'lucide-react';
 import { Badge } from './ui/badge';
+import { toast } from 'sonner';
 
 export function RecentScansTable() {
-  const scans = [
-    {
-      id: 'SC-001',
-      date: '2026-01-03',
-      time: '10:30 AM',
-      location: 'Field A-1',
-      coordinates: '7.8731° N, 80.7718° E',
-      disease: 'Anthracnose',
-      diseaseSi: 'ඇන්ත්‍රක්නෝස්',
-      confidence: 95.3,
-      severity: 'High',
-      status: 'Treated',
-    },
-    {
-      id: 'SC-002',
-      date: '2026-01-03',
-      time: '09:15 AM',
-      location: 'Field B-3',
-      coordinates: '7.8745° N, 80.7732° E',
-      disease: 'Downy Mildew',
-      diseaseSi: 'ඩවුනි මිල්ඩිව්',
-      confidence: 87.2,
-      severity: 'Medium',
-      status: 'In Progress',
-    },
-    {
-      id: 'SC-003',
-      date: '2026-01-02',
-      time: '03:45 PM',
-      location: 'Field C-2',
-      coordinates: '7.8720° N, 80.7705° E',
-      disease: 'Healthy',
-      diseaseSi: 'සෞඛ්‍ය සම්පන්න',
-      confidence: 98.1,
-      severity: 'None',
-      status: 'Completed',
-    },
-    {
-      id: 'SC-004',
-      date: '2026-01-02',
-      time: '02:20 PM',
-      location: 'Field A-2',
-      coordinates: '7.8738° N, 80.7710° E',
-      disease: 'Anthracnose',
-      diseaseSi: 'ඇන්ත්‍රක්නෝස්',
-      confidence: 91.8,
-      severity: 'High',
-      status: 'Treated',
-    },
-    {
-      id: 'SC-005',
-      date: '2026-01-02',
-      time: '11:00 AM',
-      location: 'Field D-1',
-      coordinates: '7.8750° N, 80.7725° E',
-      disease: 'Fusarium Wilt',
-      diseaseSi: 'ෆියුසේරියම් වික්',
-      confidence: 79.5,
-      severity: 'Medium',
-      status: 'Pending',
-    },
-  ];
+  const [scans, setScans] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  // Pagination state (persist on refresh)
+  const [currentPage, setCurrentPage] = useState(() => {
+    const saved = sessionStorage.getItem('recentScansPage');
+    return saved ? parseInt(saved, 10) : 1;
+  });
+  const itemsPerPage = 25;
+
+  useEffect(() => {
+    sessionStorage.setItem('recentScansPage', currentPage.toString());
+  }, [currentPage]);
+
+  useEffect(() => {
+    fetchScans();
+  }, []);
+
+  const fetchScans = async () => {
+    try {
+      const token = localStorage.getItem('access_token');
+      const response = await fetch('http://127.0.0.1:8000/api/disease/history/', {
+        headers: token ? { 'Authorization': `Bearer ${token}` } : {},
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setScans(data);
+      } else {
+        toast.error("Failed to fetch recent scans.");
+      }
+    } catch (error) {
+      console.error("Failed to fetch recent scans", error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const severityColors: Record<string, string> = {
-    High: 'bg-red-100 text-red-800 border-red-200',
-    Medium: 'bg-amber-100 text-amber-800 border-amber-200',
-    None: 'bg-green-100 text-green-800 border-green-200',
+    HIGH: 'bg-red-100 text-red-800 border-red-200',
+    MEDIUM: 'bg-amber-100 text-amber-800 border-amber-200',
+    LOW: 'bg-green-100 text-green-800 border-green-200',
+    UNKNOWN: 'bg-gray-100 text-gray-800 border-gray-200',
   };
 
   const statusColors: Record<string, string> = {
-    Treated: 'bg-green-100 text-green-800',
-    'In Progress': 'bg-blue-100 text-blue-800',
-    Completed: 'bg-gray-100 text-gray-800',
-    Pending: 'bg-amber-100 text-amber-800',
+    COMPLETED: 'bg-green-100 text-green-800',
+    PROCESSING: 'bg-blue-100 text-blue-800',
+    FAILED: 'bg-red-100 text-red-800',
+    PENDING: 'bg-amber-100 text-amber-800',
   };
 
   return (
@@ -97,7 +74,6 @@ export function RecentScansTable() {
               <TableHead className="w-24">Scan ID</TableHead>
               <TableHead>Date & Time</TableHead>
               <TableHead>Location</TableHead>
-              <TableHead>GPS Coordinates</TableHead>
               <TableHead>Disease Detected</TableHead>
               <TableHead className="text-center">Confidence</TableHead>
               <TableHead className="text-center">Severity</TableHead>
@@ -105,51 +81,98 @@ export function RecentScansTable() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {scans.map((scan) => (
-              <TableRow key={scan.id}>
-                <TableCell className="font-medium">{scan.id}</TableCell>
-                <TableCell>
-                  <div className="flex items-center gap-2">
-                    <Calendar className="w-4 h-4 text-gray-400" />
-                    <div>
-                      <p className="text-sm">{scan.date}</p>
-                      <p className="text-xs text-gray-500">{scan.time}</p>
-                    </div>
-                  </div>
-                </TableCell>
-                <TableCell>
-                  <div className="flex items-center gap-2">
-                    <MapPin className="w-4 h-4 text-[#2E7D32]" />
-                    <span>{scan.location}</span>
-                  </div>
-                </TableCell>
-                <TableCell className="text-sm text-gray-600">{scan.coordinates}</TableCell>
-                <TableCell>
-                  <div>
-                    <p className="font-medium">{scan.disease}</p>
-                    <p className="text-xs text-gray-500">{scan.diseaseSi}</p>
-                  </div>
-                </TableCell>
-                <TableCell className="text-center">
-                  <span className="font-semibold text-[#2E7D32]">{scan.confidence}%</span>
-                </TableCell>
-                <TableCell className="text-center">
-                  <Badge variant="outline" className={severityColors[scan.severity]}>
-                    {scan.severity}
-                  </Badge>
-                </TableCell>
-                <TableCell className="text-center">
-                  <Badge className={statusColors[scan.status]}>{scan.status}</Badge>
+            {isLoading ? (
+              <TableRow>
+                <TableCell colSpan={7} className="text-center py-10">
+                  <Loader2 className="w-8 h-8 animate-spin text-gray-400 mx-auto mb-2" />
+                  <span className="text-gray-500">Loading recent scans...</span>
                 </TableCell>
               </TableRow>
-            ))}
+            ) : scans.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={7} className="text-center py-10 text-gray-500">
+                  No recent scans found. Create a new diagnosis to see records here.
+                </TableCell>
+              </TableRow>
+            ) : scans.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage).map((scan) => {
+              const dateObj = new Date(scan.created_at);
+              const diseaseName = scan.prediction?.disease_name || 'N/A';
+              const confidenceStr = scan.prediction?.confidence
+                ? `${(scan.prediction.confidence * 100).toFixed(1)}%`
+                : '--';
+              const severityVal = scan.prediction?.severity || 'UNKNOWN';
+
+              return (
+                <TableRow key={scan.id}>
+                  <TableCell className="font-medium">SC-{scan.id.toString().padStart(3, '0')}</TableCell>
+                  <TableCell>
+                    <div className="flex items-center gap-2">
+                      <Calendar className="w-4 h-4 text-gray-400" />
+                      <div>
+                        <p className="text-sm">{dateObj.toLocaleDateString()}</p>
+                        <p className="text-xs text-gray-500">{dateObj.toLocaleTimeString()}</p>
+                      </div>
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex items-center gap-2">
+                      <MapPin className="w-4 h-4 text-[#2E7D32]" />
+                      <span>{scan.location_name || 'Unknown Field'}</span>
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <div>
+                      <p className="font-medium truncate max-w-[200px]" title={diseaseName}>{diseaseName}</p>
+                    </div>
+                  </TableCell>
+                  <TableCell className="text-center">
+                    <span className="font-semibold text-[#2E7D32]">{confidenceStr}</span>
+                  </TableCell>
+                  <TableCell className="text-center">
+                    <Badge variant="outline" className={severityColors[severityVal] || severityColors.UNKNOWN}>
+                      {severityVal}
+                    </Badge>
+                  </TableCell>
+                  <TableCell className="text-center">
+                    <Badge className={statusColors[scan.status] || statusColors.PENDING}>{scan.status}</Badge>
+                  </TableCell>
+                </TableRow>
+              )
+            })}
           </TableBody>
         </Table>
       </div>
 
       <div className="mt-4 flex items-center justify-between text-sm text-gray-500">
-        <p>Showing 5 most recent scans</p>
-        <button className="text-[#2E7D32] font-medium hover:underline">View All Records →</button>
+        {scans.length > 0 ? (
+          <p>
+            Showing {(currentPage - 1) * itemsPerPage + 1} to {Math.min(currentPage * itemsPerPage, scans.length)} of {scans.length} recent scans
+          </p>
+        ) : (
+          <p></p>
+        )}
+        
+        {scans.length > itemsPerPage && (
+          <div className="flex items-center gap-2">
+            <button
+              className="px-3 py-1 border rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed font-medium text-gray-700"
+              onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+              disabled={currentPage === 1}
+            >
+              Previous
+            </button>
+            <span className="font-semibold text-gray-900 mx-2">
+              Page {currentPage} of {Math.ceil(scans.length / itemsPerPage)}
+            </span>
+            <button
+              className="px-3 py-1 border rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed font-medium text-gray-700"
+              onClick={() => setCurrentPage(p => Math.min(Math.ceil(scans.length / itemsPerPage), p + 1))}
+              disabled={currentPage >= Math.ceil(scans.length / itemsPerPage)}
+            >
+              Next
+            </button>
+          </div>
+        )}
       </div>
     </Card>
   );

@@ -23,9 +23,10 @@ const WatermelonIcon = ({ className }: { className?: string }) => (
 interface LoginProps {
   onLogin: () => void;
   onSwitchToRegister: () => void;
+  onSwitchToForgotPassword: () => void;
 }
 
-export function Login({ onLogin, onSwitchToRegister }: LoginProps) {
+export function Login({ onLogin, onSwitchToRegister, onSwitchToForgotPassword }: LoginProps) {
   const [usernameOrEmail, setUsernameOrEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -118,9 +119,13 @@ export function Login({ onLogin, onSwitchToRegister }: LoginProps) {
                 <label className="block text-sm font-bold text-gray-700">
                   Password
                 </label>
-                <a href="#" className="text-sm font-bold text-[#2E7D32] hover:text-green-800 hover:underline transition-colors">
+                <button 
+                  type="button"
+                  onClick={onSwitchToForgotPassword}
+                  className="text-sm font-bold text-[#2E7D32] hover:text-green-800 hover:underline transition-colors"
+                >
                   Forgot password?
-                </a>
+                </button>
               </div>
               <div className="relative group">
                 <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-gray-400 group-focus-within:text-green-600 transition-colors">

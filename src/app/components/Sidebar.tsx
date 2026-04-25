@@ -1,11 +1,13 @@
-import { LayoutDashboard, Satellite, Brain, Settings, FileText, MapPin } from 'lucide-react';
+import { LayoutDashboard, Satellite, Brain, Settings, FileText, MapPin, LogOut } from 'lucide-react';
 
 interface SidebarProps {
   activeSection: string;
   setActiveSection: (section: string) => void;
+  onLogout: () => void;
+  userData: {username?: string, email?: string} | null;
 }
 
-export function Sidebar({ activeSection, setActiveSection }: SidebarProps) {
+export function Sidebar({ activeSection, setActiveSection, onLogout, userData }: SidebarProps) {
   const menuItems = [
     { id: 'dashboard', icon: LayoutDashboard, label: 'Dashboard', labelSi: 'උපකරණ පුවරුව' },
     { id: 'satellite', icon: Satellite, label: 'Satellite View', labelSi: 'චන්ද්‍රිකා දර්ශනය' },
@@ -59,14 +61,25 @@ export function Sidebar({ activeSection, setActiveSection }: SidebarProps) {
 
       {/* Footer */}
       <div className="p-4 border-t border-gray-200">
-        <div className="flex items-center gap-3 px-4 py-3">
-          <div className="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center">
-            <span className="text-sm font-semibold text-gray-700">FO</span>
+        <div className="flex items-center gap-3 px-4 py-3 group">
+          <div className="w-10 h-10 rounded-full bg-gray-200 flex flex-shrink-0 items-center justify-center overflow-hidden">
+            <span className="text-sm font-semibold text-gray-700 uppercase">
+              {userData?.username ? userData.username.substring(0, 2) : (userData?.email ? userData.email.substring(0, 2) : 'US')}
+            </span>
           </div>
-          <div className="flex-1">
-            <p className="text-sm font-medium text-gray-900">Field Officer</p>
-            <p className="text-xs text-gray-500">ක්ෂේත්‍ර නිලධාරී</p>
+          <div className="flex-1 overflow-hidden">
+            <p className="text-sm font-medium text-gray-900 truncate" title={userData?.username || userData?.email}>
+              {userData?.username || userData?.email || 'Loading...'}
+            </p>
+            <p className="text-xs text-gray-500 truncate">WatermelonAI</p>
           </div>
+          <button 
+            onClick={onLogout}
+            title="Logout"
+            className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors flex-shrink-0"
+          >
+            <LogOut className="w-5 h-5" />
+          </button>
         </div>
       </div>
     </aside>
