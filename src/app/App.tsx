@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { BarChart2 } from 'lucide-react';
 import { Sidebar } from './components/Sidebar';
 import { WeatherRiskWidget } from './components/WeatherRiskWidget';
 import { SatelliteMonitoringView } from './components/SatelliteMonitoringView';
@@ -10,7 +11,10 @@ import { Login } from './components/auth/Login';
 import { Register } from './components/auth/Register';
 import { PasswordResetRequest } from './components/auth/PasswordResetRequest';
 import { PasswordResetConfirm } from './components/auth/PasswordResetConfirm';
+import { EmailVerification } from './components/auth/EmailVerification';
 import { LandingPage } from './components/landing/LandingPage';
+import { DataExportModule } from './components/DataExportModule';
+import { SettingsModule } from './components/SettingsModule';
 
 const LiveClock = () => {
   const [time, setTime] = useState(new Date());
@@ -35,7 +39,7 @@ export default function App() {
     return !!localStorage.getItem('access_token');
   });
 
-  const [userData, setUserData] = useState<{username?: string, email?: string} | null>(null);
+  const [userData, setUserData] = useState<{ username?: string, email?: string } | null>(null);
 
   useEffect(() => {
     if (isAuthenticated) {
@@ -61,12 +65,13 @@ export default function App() {
     }
   }, [isAuthenticated]);
 
-  const getInitialAuthMode = (): 'landing' | 'login' | 'register' | 'forgot-password' | 'reset-password' => {
+  const getInitialAuthMode = (): 'landing' | 'login' | 'register' | 'forgot-password' | 'reset-password' | 'verify-email' => {
     const path = window.location.pathname;
     if (path === '/login') return 'login';
     if (path === '/register') return 'register';
     if (path === '/forgot-password') return 'forgot-password';
     if (path === '/reset-password') return 'reset-password';
+    if (path === '/verify-email') return 'verify-email';
     return 'landing';
   };
 
@@ -78,7 +83,7 @@ export default function App() {
     return 'dashboard';
   };
 
-  const [authMode, setAuthMode] = useState<'landing' | 'login' | 'register' | 'forgot-password' | 'reset-password'>(getInitialAuthMode());
+  const [authMode, setAuthMode] = useState<'landing' | 'login' | 'register' | 'forgot-password' | 'reset-password' | 'verify-email'>(getInitialAuthMode());
   const [activeSection, setActiveSection] = useState(getInitialSection());
 
   // Handle URL syncing when state changes
@@ -105,6 +110,7 @@ export default function App() {
         else if (path === '/register') setAuthMode('register');
         else if (path === '/forgot-password') setAuthMode('forgot-password');
         else if (path === '/reset-password') setAuthMode('reset-password');
+        else if (path === '/verify-email') setAuthMode('verify-email');
         else setAuthMode('landing');
       } else {
         const section = path.substring(1);
@@ -132,8 +138,8 @@ export default function App() {
 
     if (authMode === 'forgot-password') {
       return (
-        <PasswordResetRequest 
-          onSwitchToLogin={() => setAuthMode('login')} 
+        <PasswordResetRequest
+          onSwitchToLogin={() => setAuthMode('login')}
           onSuccess={() => setAuthMode('reset-password')}
         />
       );
@@ -141,22 +147,31 @@ export default function App() {
 
     if (authMode === 'reset-password') {
       return (
-        <PasswordResetConfirm 
+        <PasswordResetConfirm
           onSuccess={() => setAuthMode('login')}
         />
       );
     }
-    
+
+    if (authMode === 'verify-email') {
+      return (
+        <EmailVerification
+          onSuccess={() => setAuthMode('login')}
+        />
+      );
+    }
+
     return authMode === 'login' ? (
-      <Login 
-        onLogin={() => setIsAuthenticated(true)} 
-        onSwitchToRegister={() => setAuthMode('register')} 
+      <Login
+        onLogin={() => setIsAuthenticated(true)}
+        onSwitchToRegister={() => setAuthMode('register')}
         onSwitchToForgotPassword={() => setAuthMode('forgot-password')}
       />
     ) : (
-      <Register 
-        onRegister={() => setIsAuthenticated(true)} 
-        onSwitchToLogin={() => setAuthMode('login')} 
+      <Register
+        onRegister={() => setIsAuthenticated(true)}
+        onSwitchToLogin={() => setAuthMode('login')}
+        onSwitchToVerifyEmail={() => setAuthMode('verify-email')}
       />
     );
   }
@@ -164,9 +179,9 @@ export default function App() {
   return (
     <div className="flex h-screen bg-gray-50 overflow-hidden">
       {/* Sidebar Navigation */}
-      <Sidebar 
-        activeSection={activeSection} 
-        setActiveSection={setActiveSection} 
+      <Sidebar
+        activeSection={activeSection}
+        setActiveSection={setActiveSection}
         onLogout={handleLogout}
         userData={userData}
       />
@@ -202,9 +217,9 @@ export default function App() {
                     {userData ? 'WatermelonAI User' : 'Fetching...'}
                   </p>
                 </div>
-                
+
                 <div className="h-10 w-px bg-gray-200"></div>
-                
+
                 <div className="flex items-center gap-3">
                   <div className="px-4 py-2 bg-green-100 text-green-800 rounded-lg flex items-center gap-2">
                     <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
@@ -244,9 +259,9 @@ export default function App() {
           {activeSection === 'satellite' && (
             <div className="space-y-6">
               <SatelliteMonitoringView />
-              
+
               <div className="grid grid-cols-2 gap-6">
-                <WeatherRiskWidget />
+
                 <TreatmentRecommendation />
               </div>
             </div>
@@ -255,9 +270,9 @@ export default function App() {
           {activeSection === 'diagnosis' && (
             <div className="space-y-6">
               <AIDiagnosisModule />
-              
+
               <div className="grid grid-cols-3 gap-6">
-                <div className="col-span-2">
+                <div className="col-span-3">
                   <RecentScansTable />
                 </div>
                 <div>
@@ -268,86 +283,13 @@ export default function App() {
           )}
 
           {activeSection === 'data' && (
-            <div className="space-y-6">
-              <RecentScansTable />
-              
-              <div className="grid grid-cols-2 gap-6">
-                <SatelliteMonitoringView />
-                <div className="space-y-6">
-                  <WeatherRiskWidget />
-                  <div className="bg-white rounded-lg border border-gray-200 p-6">
-                    <h3 className="font-semibold text-gray-900 mb-4">Export Data</h3>
-                    <div className="space-y-3">
-                      <button className="w-full px-4 py-2 bg-[#2E7D32] text-white rounded-lg hover:bg-[#1B5E20] transition-colors">
-                        Export to CSV
-                      </button>
-                      <button className="w-full px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors">
-                        Export to PDF
-                      </button>
-                      <button className="w-full px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors">
-                        Generate Report
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              </div>
+            <div className="animate-in fade-in slide-in-from-bottom-4 duration-700 pb-8">
+              <DataExportModule />
             </div>
           )}
 
           {activeSection === 'settings' && (
-            <div className="max-w-4xl">
-              <div className="bg-white rounded-lg border border-gray-200 p-6">
-                <h3 className="font-semibold text-gray-900 mb-4">System Settings</h3>
-                <div className="space-y-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Language / භාෂාව
-                    </label>
-                    <select className="w-full px-4 py-2 border border-gray-300 rounded-lg">
-                      <option>English</option>
-                      <option>සිංහල (Sinhala)</option>
-                      <option>தமிழ் (Tamil)</option>
-                    </select>
-                  </div>
-                  
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Notification Preferences
-                    </label>
-                    <div className="space-y-2">
-                      <label className="flex items-center gap-2">
-                        <input type="checkbox" className="rounded" defaultChecked />
-                        <span className="text-sm text-gray-700">Disease detection alerts</span>
-                      </label>
-                      <label className="flex items-center gap-2">
-                        <input type="checkbox" className="rounded" defaultChecked />
-                        <span className="text-sm text-gray-700">Weather risk warnings</span>
-                      </label>
-                      <label className="flex items-center gap-2">
-                        <input type="checkbox" className="rounded" />
-                        <span className="text-sm text-gray-700">Weekly reports</span>
-                      </label>
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Default Location
-                    </label>
-                    <input 
-                      type="text" 
-                      placeholder="Enter GPS coordinates"
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg"
-                      defaultValue="7.8731° N, 80.7718° E"
-                    />
-                  </div>
-
-                  <button className="w-full px-4 py-2 bg-[#2E7D32] text-white rounded-lg hover:bg-[#1B5E20] transition-colors mt-4">
-                    Save Settings
-                  </button>
-                </div>
-              </div>
-            </div>
+            <SettingsModule />
           )}
         </div>
       </main>

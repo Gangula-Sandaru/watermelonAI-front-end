@@ -36,7 +36,7 @@ export function PasswordResetRequest({ onSwitchToLogin, onSuccess }: PasswordRes
     
     setIsLoading(true);
     try {
-      const response = await fetch('http://127.0.0.1:8000/api/auth/password-reset/request/', {
+      const response = await fetch('http://127.0.0.1:8000/api/email/request-password-reset/', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email })
@@ -46,14 +46,7 @@ export function PasswordResetRequest({ onSwitchToLogin, onSuccess }: PasswordRes
       if (response.ok) {
         toast.success('Password reset link sent to your email');
         setIsSent(true);
-        // If testing locally without email, you might log the token or mock it
-        console.log("Mock Token for Testing:", data.token);
-        
-        // Simulating the user clicking the link in the email
-        setTimeout(() => {
-           window.history.pushState({}, '', `/reset-password?token=${data.token}`);
-           onSuccess(); 
-        }, 3000);
+        // User should check their email and click the link which brings them to /reset-password?token=...
 
       } else {
         toast.error(data.error || 'Failed to request password reset');
@@ -106,9 +99,12 @@ export function PasswordResetRequest({ onSwitchToLogin, onSuccess }: PasswordRes
               <p className="text-gray-600 font-medium mb-6">
                 We've sent a password reset link to <strong className="text-gray-900">{email}</strong>. Please check your inbox.
               </p>
-              <div className="p-4 bg-blue-50 text-blue-800 rounded-xl text-sm font-medium border border-blue-100">
-                (For this demo, you will be redirected to the confirm page in 3 seconds...)
-              </div>
+              <button
+                onClick={onSwitchToLogin}
+                className="w-full flex items-center justify-center gap-2 px-6 py-4 bg-gray-50 text-gray-700 rounded-2xl hover:bg-gray-100 transition-all font-bold border border-gray-200"
+              >
+                Back to Login
+              </button>
             </div>
           ) : (
             <>

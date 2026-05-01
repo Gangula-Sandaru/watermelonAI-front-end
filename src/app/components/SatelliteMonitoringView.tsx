@@ -1,100 +1,666 @@
+import React, { useState, useEffect } from 'react';
 import { Card } from './ui/card';
-import { Satellite, Layers, ZoomIn, Download } from 'lucide-react';
+import { Satellite, Layers, ZoomIn, Download, Plus, Save, X, Search, MapPin, Maximize, Minimize, Trash2, Navigation, Edit2, Check, Loader2 } from 'lucide-react';
 import { Button } from './ui/button';
+import { MapContainer, TileLayer, Polygon, Marker, Popup, useMap, useMapEvents, CircleMarker, Tooltip } from 'react-leaflet';
+import 'leaflet/dist/leaflet.css';
+import L from 'leaflet';
+
+// Fix for default marker icons in react-leaflet
+import icon from 'leaflet/dist/images/marker-icon.png';
+import iconShadow from 'leaflet/dist/images/marker-shadow.png';
+
+let DefaultIcon = L.icon({
+  iconUrl: icon,
+  shadowUrl: iconShadow,
+  iconAnchor: [12, 41]
+});
+L.Marker.prototype.options.icon = DefaultIcon;
+
+// Map controller to handle flying to search results
+function MapController({ center, zoom }: { center: [number, number], zoom: number }) {
+  const map = useMap();
+  useEffect(() => {
+    map.flyTo(center, zoom);
+  }, [center, zoom, map]);
+  return null;
+}
+
+// Map events to handle drawing
+function MapInteraction({ isCreating, points, setPoints }: { isCreating: boolean, points: any[], setPoints: any }) {
+  useMapEvents({
+    click(e) {
+      if (isCreating) {
+        setPoints([...points, { lat: e.latlng.lat, lng: e.latlng.lng }]);
+      }
+    }
+  });
+  return null;
+}
 
 export function SatelliteMonitoringView() {
+  const [farms, setFarms] = useState<any[]>([]);
+  const [isCreating, setIsCreating] = useState(false);
+  const [newFarmName, setNewFarmName] = useState('');
+  const [points, setPoints] = useState<{lat: number, lng: number}[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [scanningFarmId, setScanningFarmId] = useState<number | null>(null);
+  
+  // UI States
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [editingFarmId, setEditingFarmId] = useState<number | null>(null);
+  const [editFarmName, setEditFarmName] = useState('');
+
+  // Map State
+  const [mapCenter, setMapCenter] = useState<[number, number]>([7.8731, 80.7718]); // Default to Sri Lanka
+  const [mapZoom, setMapZoom] = useState(7);
+  const [searchQuery, setSearchQuery] = useState('');
+
+  const fetchFarms = async () => {
+    try {
+      const token = localStorage.getItem('access_token') || localStorage.getItem('token');
+      const response = await fetch('http://127.0.0.1:8000/api/satellite/farms/', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setFarms(data);
+        
+        // Auto-center to the first farm if exists and we're just loading
+        if (loading && data.length > 0 && data[0].center_lat) {
+          setMapCenter([data[0].center_lat, data[0].center_lng]);
+          setMapZoom(14);
+        }
+      }
+    } catch (err) {
+      console.error("Failed to fetch farms", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchFarms();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Prevent scroll when fullscreen
+  useEffect(() => {
+    if (isFullscreen) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = 'auto';
+    }
+    return () => { document.body.style.overflow = 'auto'; };
+  }, [isFullscreen]);
+
+  const handleSearch = async () => {
+    if (!searchQuery) return;
+    try {
+      const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(searchQuery)}`);
+      const data = await res.json();
+      if (data && data.length > 0) {
+        setMapCenter([parseFloat(data[0].lat), parseFloat(data[0].lon)]);
+        setMapZoom(15);
+      } else {
+        alert('Location not found. Try a different search term.');
+      }
+    } catch (e) {
+      console.error('Search failed', e);
+    }
+  };
+
+  const handleSaveFarm = async () => {
+    if (!newFarmName || points.length < 3) {
+      alert("Please enter a name and click on the map to select at least 3 points for the boundary.");
+      return;
+    }
+
+    try {
+      const token = localStorage.getItem('access_token') || localStorage.getItem('token');
+      
+      const payload = {
+        name: newFarmName,
+        polygon_coordinates: points, // now just an array of {lat, lng}
+        center_lat: points[0].lat,
+        center_lng: points[0].lng
+      };
+
+      const response = await fetch('http://127.0.0.1:8000/api/satellite/farms/', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(payload)
+      });
+
+      if (response.ok) {
+        const newFarm = await response.json();
+        
+        // Trigger initial scan
+        await fetch(`http://127.0.0.1:8000/api/satellite/farms/${newFarm.id}/request_scan/`, {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        
+        setIsCreating(false);
+        setPoints([]);
+        setNewFarmName('');
+        fetchFarms();
+      }
+    } catch (err) {
+      console.error("Failed to save farm", err);
+    }
+  };
+
+  const handleRescan = async (id: number) => {
+    if (scanningFarmId) return; // Prevent multiple scans at once
+    setScanningFarmId(id);
+    
+    // Fly to the farm before scanning
+    const farm = farms.find(f => f.id === id);
+    if (farm && farm.center_lat && farm.center_lng) {
+      setMapCenter([farm.center_lat, farm.center_lng]);
+      setMapZoom(16);
+    }
+    
+    try {
+      const token = localStorage.getItem('access_token') || localStorage.getItem('token');
+      const response = await fetch(`http://127.0.0.1:8000/api/satellite/farms/${id}/request_scan/`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (response.ok) {
+        await fetchFarms();
+      }
+    } catch (err) {
+      console.error("Failed to rescan", err);
+    } finally {
+      setScanningFarmId(null);
+    }
+  };
+
+  const handleDeleteFarm = async (id: number) => {
+    if (!window.confirm('Are you sure you want to remove this farm?')) return;
+    try {
+      const token = localStorage.getItem('access_token') || localStorage.getItem('token');
+      const response = await fetch(`http://127.0.0.1:8000/api/satellite/farms/${id}/`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (response.ok) {
+        fetchFarms();
+      }
+    } catch (err) {
+      console.error("Failed to delete farm", err);
+    }
+  };
+
+  const handleEditFarmSave = async (id: number) => {
+    try {
+      const token = localStorage.getItem('access_token') || localStorage.getItem('token');
+      const response = await fetch(`http://127.0.0.1:8000/api/satellite/farms/${id}/`, {
+        method: 'PATCH',
+        headers: { 
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ name: editFarmName })
+      });
+      if (response.ok) {
+        setEditingFarmId(null);
+        fetchFarms();
+      }
+    } catch(err) {
+      console.error("Failed to update farm", err);
+    }
+  };
+
+  const handleNavigateToFarm = (farm: any) => {
+    if (farm.center_lat && farm.center_lng) {
+      setMapCenter([farm.center_lat, farm.center_lng]);
+      setMapZoom(16);
+    }
+  };
+
+  const cancelCreation = () => {
+    setIsCreating(false);
+    setPoints([]);
+    setNewFarmName('');
+  };
+
   return (
-    <Card className="p-6">
-      <div className="flex items-center justify-between mb-4">
+    <Card className={`p-6 bg-white transition-all duration-300 ${isFullscreen ? 'fixed inset-0 z-[9999] rounded-none m-0 h-screen overflow-hidden flex flex-col' : ''}`}>
+      <div className="flex flex-col md:flex-row items-start md:items-center justify-between mb-4 gap-4 flex-shrink-0">
         <div>
           <h3 className="font-semibold text-gray-900">Satellite Crop Monitoring</h3>
           <p className="text-sm text-gray-500">චන්ද්‍රිකා භෝග අධීක්ෂණය</p>
         </div>
-        <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm">
-            <ZoomIn className="w-4 h-4 mr-2" />
-            Zoom
-          </Button>
-          <Button variant="outline" size="sm">
-            <Download className="w-4 h-4 mr-2" />
-            Export
-          </Button>
-        </div>
-      </div>
-
-      {/* Map Container */}
-      <div className="relative bg-gray-900 rounded-lg overflow-hidden" style={{ height: '400px' }}>
-        {/* Simulated NDVI Heatmap */}
-        <img
-          src="https://images.unsplash.com/photo-1701390544948-f88cadb4aa73?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxzYXRlbGxpdGUlMjBtYXAlMjB2ZWdldGF0aW9ufGVufDF8fHx8MTc2NzQzMzc0Nnww&ixlib=rb-4.1.0&q=80&w=1080&utm_source=figma&utm_medium=referral"
-          alt="Satellite view"
-          className="w-full h-full object-cover opacity-60"
-        />
         
-        {/* Overlay with NDVI visualization */}
-        <div className="absolute inset-0 bg-gradient-to-br from-green-500/30 via-yellow-500/30 to-red-500/20"></div>
-
-        {/* Field Markers */}
-        <div className="absolute top-1/3 left-1/2 transform -translate-x-1/2 -translate-y-1/2">
-          <div className="relative">
-            <div className="w-4 h-4 bg-[#2E7D32] rounded-full border-4 border-white shadow-lg animate-pulse"></div>
-            <div className="absolute -top-10 left-1/2 transform -translate-x-1/2 bg-white px-3 py-1 rounded shadow-lg whitespace-nowrap">
-              <p className="text-xs font-semibold">Field A-1</p>
-              <p className="text-xs text-green-600">NDVI: 0.72 (Healthy)</p>
-            </div>
-          </div>
+        {/* Search Bar */}
+        <div className="flex items-center flex-1 max-w-md mx-4">
+          <input 
+            type="text" 
+            placeholder="Search for a location..." 
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
+            className="w-full border rounded-l-md px-3 py-1.5 text-sm outline-none focus:border-[#2ecc71]"
+          />
+          <Button onClick={handleSearch} className="rounded-l-none bg-gray-800 hover:bg-gray-700 text-white">
+            <Search className="w-4 h-4" />
+          </Button>
         </div>
 
-        <div className="absolute top-2/3 left-2/3">
-          <div className="relative">
-            <div className="w-4 h-4 bg-amber-500 rounded-full border-4 border-white shadow-lg animate-pulse"></div>
-            <div className="absolute -top-10 left-1/2 transform -translate-x-1/2 bg-white px-3 py-1 rounded shadow-lg whitespace-nowrap">
-              <p className="text-xs font-semibold">Field B-3</p>
-              <p className="text-xs text-amber-600">NDVI: 0.45 (Alert)</p>
-            </div>
-          </div>
-        </div>
-
-        {/* Map Controls */}
-        <div className="absolute top-4 right-4 bg-white rounded-lg shadow-lg p-2">
-          <div className="flex flex-col gap-2">
-            <button className="p-2 hover:bg-gray-100 rounded">
-              <Layers className="w-4 h-4 text-gray-700" />
-            </button>
-            <button className="p-2 hover:bg-gray-100 rounded">
-              <Satellite className="w-4 h-4 text-gray-700" />
-            </button>
-          </div>
-        </div>
-
-        {/* Legend */}
-        <div className="absolute bottom-4 left-4 bg-white rounded-lg shadow-lg p-3">
-          <p className="text-xs font-semibold mb-2">Vegetation Health Index (NDVI)</p>
-          <div className="flex items-center gap-2">
-            <div className="w-32 h-3 rounded-full bg-gradient-to-r from-red-500 via-yellow-500 to-green-500"></div>
-            <div className="flex justify-between w-full text-xs">
-              <span>0.0</span>
-              <span>0.5</span>
-              <span>1.0</span>
-            </div>
-          </div>
-          <div className="flex justify-between text-xs mt-1 text-gray-600">
-            <span>Stressed</span>
-            <span>Moderate</span>
-            <span>Healthy</span>
-          </div>
-        </div>
-
-        {/* Coordinates */}
-        <div className="absolute bottom-4 right-4 bg-black/70 text-white text-xs px-3 py-1 rounded">
-          7.8731° N, 80.7718° E
+        <div className="flex items-center gap-2">
+          {!isCreating ? (
+            <Button onClick={() => setIsCreating(true)} className="bg-[#ff4b6b] hover:bg-[#ff3355] text-white">
+              <Plus className="w-4 h-4 mr-2" />
+              Draw Farm Boundary
+            </Button>
+          ) : (
+            <>
+              <input 
+                type="text" 
+                placeholder="Farm Name" 
+                value={newFarmName}
+                onChange={(e) => setNewFarmName(e.target.value)}
+                className="border rounded px-3 py-1.5 text-sm outline-none focus:border-[#2ecc71]"
+              />
+              <Button onClick={handleSaveFarm} className="bg-[#2ecc71] hover:bg-[#27ae60] text-white">
+                <Save className="w-4 h-4 mr-2" />
+                Save Area
+              </Button>
+              <Button variant="outline" onClick={cancelCreation}>
+                <X className="w-4 h-4 mr-2" />
+                Cancel
+              </Button>
+            </>
+          )}
         </div>
       </div>
 
-      <div className="mt-4 text-xs text-gray-500">
-        <p>Data source: Google Earth Engine API • Sentinel-2 Imagery</p>
-        <p>Last updated: January 3, 2026 - 10:30 AM</p>
+      <div className={`flex flex-col lg:flex-row gap-6 ${isFullscreen ? 'flex-grow min-h-0' : ''}`}>
+        
+        {/* Farm List Panel */}
+        <div className={`flex flex-col bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm flex-shrink-0 ${isFullscreen ? 'w-80 h-full' : 'w-full lg:w-72 h-[500px]'}`}>
+          <div className="p-4 bg-gray-50 border-b border-gray-200">
+            <h4 className="font-semibold text-gray-800 flex items-center gap-2">
+              <Layers className="w-4 h-4 text-[#2ecc71]" /> My Farms
+            </h4>
+          </div>
+          <div className="overflow-y-auto flex-1 p-3 space-y-3 bg-gray-50/50">
+            {farms.length === 0 && !loading && (
+              <p className="text-sm text-gray-500 p-4 text-center">No farms saved yet. Click "Draw Farm Boundary" to add one.</p>
+            )}
+            {loading && <p className="text-sm text-gray-500 p-4 text-center">Loading farms...</p>}
+            {farms.map(farm => (
+              <div key={farm.id} className="p-3 border border-gray-200 bg-white rounded-lg hover:shadow-md transition-all group">
+                <div className="flex justify-between items-start mb-3">
+                  {editingFarmId === farm.id ? (
+                    <div className="flex items-center gap-1 w-full mr-2">
+                      <input 
+                        autoFocus
+                        value={editFarmName} 
+                        onChange={(e) => setEditFarmName(e.target.value)}
+                        className="text-sm font-semibold border-b border-green-500 outline-none w-full px-1 py-0.5"
+                      />
+                      <button onClick={() => handleEditFarmSave(farm.id)} className="text-green-600 hover:text-green-800 p-1 bg-green-50 rounded">
+                        <Check className="w-3.5 h-3.5" />
+                      </button>
+                      <button onClick={() => setEditingFarmId(null)} className="text-gray-400 hover:text-gray-600 p-1">
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  ) : (
+                    <>
+                      <h5 className="font-semibold text-sm text-gray-900 truncate pr-2 cursor-pointer hover:text-[#2ecc71]" onClick={() => handleNavigateToFarm(farm)}>
+                        {farm.name}
+                      </h5>
+                      <div className="flex gap-2 text-gray-400">
+                        <button onClick={(e) => { e.stopPropagation(); handleRescan(farm.id); }} disabled={scanningFarmId !== null} className={`${scanningFarmId === farm.id ? 'text-green-500' : 'hover:text-green-500'} p-1 transition-colors`} title="Request New Scan">
+                          {scanningFarmId === farm.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Satellite className="w-3.5 h-3.5" />}
+                        </button>
+                        <button onClick={(e) => { e.stopPropagation(); setEditingFarmId(farm.id); setEditFarmName(farm.name); }} className="hover:text-blue-500 p-1 transition-colors" title="Edit Farm Name">
+                          <Edit2 className="w-3.5 h-3.5" />
+                        </button>
+                        <button onClick={(e) => { e.stopPropagation(); handleDeleteFarm(farm.id); }} className="hover:text-red-500 p-1 transition-colors" title="Delete Farm">
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </>
+                  )}
+                </div>
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  className="w-full text-xs text-[#2E7D32] bg-green-50/80 hover:bg-green-100 hover:text-green-800 border border-green-100"
+                  onClick={() => handleNavigateToFarm(farm)}
+                >
+                  <Navigation className="w-3.5 h-3.5 mr-1.5" /> Navigate to Map
+                </Button>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Map Area */}
+        <div className={`relative rounded-lg overflow-hidden border flex-grow ${isCreating ? 'ring-2 ring-[#ff4b6b]' : ''} ${isFullscreen ? 'h-full' : 'h-[500px]'}`}>
+          
+          {/* Fullscreen Toggle */}
+          <button 
+            onClick={() => setIsFullscreen(!isFullscreen)}
+            className="absolute top-4 right-4 z-[1000] p-2 bg-white/95 backdrop-blur rounded-lg shadow-md hover:bg-gray-50 border border-gray-200 text-gray-700 transition-all hover:scale-105"
+            title={isFullscreen ? "Exit Fullscreen" : "Maximize Map"}
+          >
+            {isFullscreen ? <Minimize className="w-5 h-5" /> : <Maximize className="w-5 h-5" />}
+          </button>
+
+          {isCreating && (
+            <div className="absolute top-4 left-1/2 -translate-x-1/2 z-[1000] p-3 bg-blue-50/95 backdrop-blur-sm border border-blue-200 rounded-lg shadow-lg text-blue-800 text-sm flex items-center">
+              <MapPin className="w-4 h-4 mr-2 animate-bounce" />
+              <span className="font-medium">Click on the map to draw your farm's boundary. Need at least 3 points.</span>
+            </div>
+          )}
+
+          <MapContainer 
+            center={mapCenter} 
+            zoom={mapZoom} 
+            style={{ height: '100%', width: '100%' }}
+            className={isCreating ? "cursor-crosshair" : ""}
+          >
+            {/* We use Google Satellite Map Tiles */}
+            <TileLayer
+              url="https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}"
+              attribution="&copy; Google Maps"
+              maxZoom={20}
+            />
+            
+            <MapController center={mapCenter} zoom={mapZoom} />
+            <MapInteraction isCreating={isCreating} points={points} setPoints={setPoints} />
+
+                  {/* Display markers for drawing points so user sees feedback immediately */}
+            {isCreating && points.map((p, i) => (
+              <CircleMarker 
+                key={`point-${i}`} 
+                center={[p.lat, p.lng]} 
+                radius={5} 
+                pathOptions={{ color: 'white', fillColor: '#ff4b6b', fillOpacity: 1, weight: 2 }} 
+              />
+            ))}
+
+            {/* Currently drawing polygon or line */}
+            {isCreating && points.length > 1 && (
+              <Polygon 
+                positions={points.map(p => [p.lat, p.lng])} 
+                pathOptions={{ color: '#ff4b6b', fillColor: '#ff4b6b', fillOpacity: 0.3, weight: 3 }} 
+              />
+            )}
+
+            {/* Display all saved farms */}
+            {!isCreating && farms.map((farm) => {
+              const coords = farm.polygon_coordinates || [];
+              if (coords.length < 3) return null;
+
+              const latestScan = farm.scans && farm.scans.length > 0 ? farm.scans[0] : null;
+              let color = '#2ecc71'; // healthy
+              const isStressed = latestScan?.status === 'alert' || latestScan?.status === 'stressed';
+              
+              if (isStressed) color = '#ff4b6b';
+              else if (latestScan?.status === 'moderate') color = '#f59e0b';
+
+              const polyPositions = coords.map((p: any) => [p.lat, p.lng]);
+              
+              // Read circular hotspots directly from the database patches!
+              let hotspots: any[] = [];
+              if (farm.patches && farm.patches.length > 0) {
+                hotspots = farm.patches.map((patch: any) => {
+                  // Sort scans by ID (newest last) or assume they are ordered
+                  const scans = patch.scans || [];
+                  const latestScan = scans.length > 0 ? scans[scans.length - 1] : null;
+                  
+                  const ndvi = latestScan ? latestScan.ndvi_value : 0.5;
+                  
+                  return {
+                    id: patch.id,
+                    name: patch.name,
+                    lat: patch.center_lat,
+                    lng: patch.center_lng,
+                    radius: patch.radius,
+                    ndvi: ndvi,
+                    category: ndvi < 0.3 ? 'Low (Severe Stress)' : 'Moderate Stress',
+                    color: ndvi < 0.3 ? '#ef4444' : '#f59e0b',
+                    history: scans
+                  };
+                });
+              }
+
+              return (
+                <React.Fragment key={farm.id}>
+                  <Polygon 
+                    positions={polyPositions}
+                    pathOptions={{ color: color, fillColor: color, fillOpacity: 0.15, weight: 2 }}
+                  >
+                    <Popup>
+                      <div className="p-1 min-w-[150px]">
+                        <h4 className="font-bold text-gray-900 mb-1">{farm.name}</h4>
+                        {latestScan ? (
+                          <div>
+                            <p className="text-sm font-semibold" style={{ color }}>
+                              Status: {latestScan.status.toUpperCase()}
+                            </p>
+                            <p className="text-xs text-gray-600 mt-1">
+                              Avg NDVI Index: {latestScan.ndvi_value.toFixed(2)}
+                            </p>
+                            <p className="text-xs text-gray-400 mt-1">
+                              Scanned: {new Date(latestScan.scan_date).toLocaleDateString()}
+                            </p>
+                            <p className="text-xs mt-2 font-semibold text-gray-700">Problem Patches: {hotspots.length}</p>
+                          </div>
+                        ) : (
+                          <p className="text-xs text-gray-500">No scan data available.</p>
+                        )}
+                      </div>
+                    </Popup>
+                  </Polygon>
+                  
+                  {/* Render True Database Circular Hotspots */}
+                  {hotspots.map((spot, idx) => (
+                    <CircleMarker 
+                      key={`hotspot-${farm.id}-${spot.id}`}
+                      center={[spot.lat, spot.lng]}
+                      radius={spot.radius}
+                      pathOptions={{ 
+                        color: spot.color, 
+                        fillColor: spot.color, 
+                        fillOpacity: 0.35, 
+                        weight: 2,
+                        dashArray: '6, 6'
+                      }}
+                      className="animate-pulse"
+                    >
+                      <Popup>
+                        <div className="p-1 min-w-[150px]">
+                          <h4 className="font-bold text-gray-900 mb-1">{spot.name}</h4>
+                          <p className="text-sm font-semibold" style={{ color: spot.color }}>
+                            {spot.category} (NDVI: {spot.ndvi.toFixed(2)})
+                          </p>
+                          <div className="mt-2">
+                            <p className="text-xs font-semibold text-gray-600 border-b pb-1 mb-1">Scan History Tracker</p>
+                            <div className="max-h-[100px] overflow-y-auto space-y-1">
+                              {spot.history.slice().reverse().map((h: any, i: number) => (
+                                <div key={i} className="flex justify-between text-xs">
+                                  <span className="text-gray-500">Scan {spot.history.length - i}</span>
+                                  <span className="font-mono font-medium" style={{ color: h.ndvi_value < 0.3 ? '#ef4444' : (h.ndvi_value > 0.6 ? '#2ecc71' : '#f59e0b') }}>
+                                    {h.ndvi_value.toFixed(2)}
+                                  </span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        </div>
+                      </Popup>
+                      <Tooltip direction="top" offset={[0, -10]}>
+                        <div className="text-xs text-center">
+                          <span className="font-bold" style={{ color: spot.color }}>
+                            {spot.name}
+                          </span>
+                          <br/>
+                          NDVI: {spot.ndvi.toFixed(2)}
+                        </div>
+                      </Tooltip>
+                    </CircleMarker>
+                  ))}
+                </React.Fragment>
+              );
+            })}
+          </MapContainer>
+
+          {/* Legend Overlay */}
+          <div className="absolute bottom-6 left-6 bg-white/95 backdrop-blur-sm rounded-lg shadow-lg p-3 z-[1000] border border-gray-100">
+            <p className="text-xs font-semibold mb-2 text-gray-800">Vegetation Health Index (NDVI)</p>
+            <div className="flex items-center gap-2">
+              <div className="w-32 h-2.5 rounded-full bg-gradient-to-r from-[#ff4b6b] via-[#f59e0b] to-[#2ecc71]"></div>
+            </div>
+            <div className="flex justify-between w-32 text-[10px] mt-1 text-gray-600 font-medium">
+              <span>Stressed</span>
+              <span>Healthy</span>
+            </div>
+          </div>
+        </div>
+
       </div>
+
+      {!isFullscreen && (
+        <div className="mt-8 pt-6 border-t border-gray-100">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-bold text-gray-800 flex items-center gap-2">
+              <Layers className="w-5 h-5 text-blue-500" />
+              Analytics & Scan History
+            </h3>
+            <p className="text-xs text-gray-500">Track patch recovery over time</p>
+          </div>
+          
+          <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm text-left">
+                <thead className="bg-gray-50 border-b border-gray-200 text-gray-600">
+                  <tr>
+                    <th className="px-4 py-3 font-semibold">Farm Name</th>
+                    <th className="px-4 py-3 font-semibold">Overall Status</th>
+                    <th className="px-4 py-3 font-semibold">Avg NDVI</th>
+                    <th className="px-4 py-3 font-semibold">Identified Patches</th>
+                    <th className="px-4 py-3 font-semibold">Patch History Tracker (NDVI)</th>
+                    <th className="px-4 py-3 font-semibold">Last Scanned</th>
+                    <th className="px-4 py-3 font-semibold text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {farms.length === 0 && !loading && (
+                    <tr>
+                      <td colSpan={7} className="px-4 py-8 text-center text-gray-500">
+                        No data available. Draw a farm boundary to begin monitoring.
+                      </td>
+                    </tr>
+                  )}
+                  {farms.map((farm) => {
+                    const latestScan = farm.scans && farm.scans.length > 0 ? farm.scans[0] : null;
+                    const isStressed = latestScan?.status === 'alert' || latestScan?.status === 'stressed';
+                    const statusColor = isStressed ? 'text-red-600 bg-red-50' : (latestScan?.status === 'moderate' ? 'text-orange-600 bg-orange-50' : 'text-green-600 bg-green-50');
+                    const patches = farm.patches || [];
+                    
+                    return (
+                      <tr key={`table-${farm.id}`} className="hover:bg-gray-50 transition-colors">
+                        <td className="px-4 py-4 font-medium text-gray-900">
+                          {farm.name}
+                        </td>
+                        <td className="px-4 py-4">
+                          {latestScan ? (
+                            <span className={`px-2.5 py-1 rounded-full text-xs font-semibold ${statusColor}`}>
+                              {latestScan.status.toUpperCase()}
+                            </span>
+                          ) : <span className="text-gray-400">-</span>}
+                        </td>
+                        <td className="px-4 py-4 font-mono font-medium text-gray-700">
+                          {latestScan ? latestScan.ndvi_value.toFixed(2) : '-'}
+                        </td>
+                        <td className="px-4 py-4 text-gray-600">
+                          {patches.length > 0 ? (
+                            <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-red-100 text-red-700 font-bold text-xs">
+                              {patches.length}
+                            </span>
+                          ) : (
+                            <span className="text-gray-400">None</span>
+                          )}
+                        </td>
+                        <td className="px-4 py-4">
+                          {patches.length > 0 ? (
+                            <div className="flex flex-col gap-2">
+                              {patches.map((patch: any) => {
+                                const history = patch.scans || [];
+                                // take last 5 scans
+                                const recent = history.slice(-5);
+                                return (
+                                  <div key={`patch-hist-${patch.id}`} className="flex items-center gap-2 text-xs">
+                                    <span className="font-semibold text-gray-700 w-16 truncate" title={patch.name}>{patch.name}:</span>
+                                    <div className="flex items-center gap-1">
+                                      {recent.map((h: any, i: number) => {
+                                        const hColor = h.ndvi_value < 0.3 ? 'text-red-600' : (h.ndvi_value > 0.6 ? 'text-green-600' : 'text-orange-500');
+                                        return (
+                                          <React.Fragment key={i}>
+                                            <span className={`font-mono ${hColor}`}>{h.ndvi_value.toFixed(2)}</span>
+                                            {i < recent.length - 1 && <span className="text-gray-300">→</span>}
+                                          </React.Fragment>
+                                        );
+                                      })}
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          ) : (
+                            <span className="text-gray-400 text-xs">No patches tracked</span>
+                          )}
+                        </td>
+                        <td className="px-4 py-4 text-xs text-gray-500">
+                          {latestScan ? new Date(latestScan.scan_date).toLocaleDateString() : 'Never'}
+                        </td>
+                        <td className="px-4 py-4">
+                          <div className="flex items-center justify-end gap-3">
+                            {scanningFarmId === farm.id && (
+                              <div className="flex items-center text-blue-600 text-xs font-mono animate-pulse">
+                                <Satellite className="w-4 h-4 mr-1.5" />
+                                Uplink Active...
+                              </div>
+                            )}
+                            <Button 
+                              variant="outline" 
+                              size="sm" 
+                              disabled={scanningFarmId !== null}
+                              onClick={() => handleRescan(farm.id)}
+                              className="text-blue-600 border-blue-200 hover:bg-blue-50"
+                            >
+                              {scanningFarmId === farm.id ? <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" /> : <Satellite className="w-3.5 h-3.5 mr-1.5" />}
+                              {scanningFarmId === farm.id ? 'Scanning' : 'Re-Scan'}
+                            </Button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {!isFullscreen && (
+        <div className="mt-4 text-xs text-gray-500 flex justify-between items-center flex-shrink-0">
+          <p>Map Data: Google Satellite • Geocoding: OSM • API Sync: WatermelonAI</p>
+        </div>
+      )}
     </Card>
   );
 }

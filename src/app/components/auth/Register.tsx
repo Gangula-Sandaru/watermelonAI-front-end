@@ -23,9 +23,10 @@ const WatermelonIcon = ({ className }: { className?: string }) => (
 interface RegisterProps {
   onRegister: () => void;
   onSwitchToLogin: () => void;
+  onSwitchToVerifyEmail: () => void;
 }
 
-export function Register({ onRegister, onSwitchToLogin }: RegisterProps) {
+export function Register({ onRegister, onSwitchToLogin, onSwitchToVerifyEmail }: RegisterProps) {
   const [step, setStep] = useState<'role' | 'form'>('role');
   const [role, setRole] = useState<'farmer' | 'researcher' | null>(null);
 
@@ -55,8 +56,19 @@ export function Register({ onRegister, onSwitchToLogin }: RegisterProps) {
       const data = await response.json();
       
       if (response.ok) {
-        toast.success(`Account created successfully!`);
-        onRegister();
+        // Trigger verification email logic
+        try {
+          await fetch('http://127.0.0.1:8000/api/email/request-verification/', {
+             method: 'POST',
+             headers: { 'Content-Type': 'application/json' },
+             body: JSON.stringify({ email: email })
+          });
+        } catch(e) {
+          console.error("Verification email trigger failed", e);
+        }
+        
+        toast.success(`Account created! Please check your email to verify your account.`);
+        onSwitchToVerifyEmail();
       } else {
         toast.error(data.detail || data.error || data.username?.[0] || data.email?.[0] || 'Registration failed');
       }
