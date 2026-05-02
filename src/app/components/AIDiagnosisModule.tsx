@@ -103,6 +103,11 @@ export function AIDiagnosisModule() {
         body: formData,
       });
 
+      if (response.status === 401) {
+        window.dispatchEvent(new CustomEvent('watermelon-auth-error'));
+        return;
+      }
+
       const data = await response.json();
 
       if (response.ok) {

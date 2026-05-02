@@ -30,6 +30,10 @@ export function RecentScansTable() {
       const response = await fetch('http://127.0.0.1:8000/api/disease/history/', {
         headers: token ? { 'Authorization': `Bearer ${token}` } : {},
       });
+      if (response.status === 401) {
+        window.dispatchEvent(new CustomEvent('watermelon-auth-error'));
+        return;
+      }
       if (response.ok) {
         const data = await response.json();
         setScans(data);

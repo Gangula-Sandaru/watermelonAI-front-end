@@ -1,55 +1,76 @@
+import React, { useState, useEffect } from 'react';
 import { Card } from './ui/card';
-import { TrendingUp, Activity, TriangleAlert, CircleCheck } from 'lucide-react';
+import { TrendingUp, Activity, TriangleAlert, CircleCheck, Loader2 } from 'lucide-react';
 import { BarChart, Bar, LineChart, Line, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 
 export function AnalyticsDashboard() {
-  const weeklyData = [
-    { day: 'Mon', scans: 12, diseases: 4, healthy: 8 },
-    { day: 'Tue', scans: 15, diseases: 6, healthy: 9 },
-    { day: 'Wed', scans: 18, diseases: 5, healthy: 13 },
-    { day: 'Thu', scans: 14, diseases: 3, healthy: 11 },
-    { day: 'Fri', scans: 20, diseases: 8, healthy: 12 },
-    { day: 'Sat', scans: 16, diseases: 5, healthy: 11 },
-    { day: 'Sun', scans: 10, diseases: 2, healthy: 8 },
-  ];
+  const [loading, setLoading] = useState(true);
+  const [data, setData] = useState<any>(null);
 
-  const diseaseDistribution = [
-    { name: 'Anthracnose', value: 45, color: '#EF4444' },
-    { name: 'Downy Mildew', value: 25, color: '#F59E0B' },
-    { name: 'Fusarium Wilt', value: 15, color: '#8B5CF6' },
-    { name: 'Healthy', value: 15, color: '#10B981' },
-  ];
+  useEffect(() => {
+    const fetchAnalytics = async () => {
+      try {
+        const token = localStorage.getItem('access_token') || localStorage.getItem('token');
+        const response = await fetch('http://127.0.0.1:8000/api/disease/analytics/', {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (response.ok) {
+          const result = await response.json();
+          setData(result);
+        }
+      } catch (err) {
+        console.error("Failed to fetch analytics", err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchAnalytics();
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[400px] gap-4">
+        <Loader2 className="w-12 h-12 text-[#2E7D32] animate-spin" />
+        <p className="text-gray-500 font-medium animate-pulse">Analyzing farm data...</p>
+      </div>
+    );
+  }
+
+  if (!data) return null;
+
+  const weeklyData = data.weekly_data;
+  const diseaseDistribution = data.disease_distribution;
 
   const stats = [
     {
       label: 'Total Scans',
       labelSi: 'මුළු පරිලෝකන',
-      value: '105',
-      change: '+12%',
+      value: data.stats.total_scans,
+      change: data.stats.total_scans_change,
       icon: Activity,
       color: 'blue',
     },
     {
       label: 'Diseases Detected',
       labelSi: 'හඳුනාගත් රෝග',
-      value: '33',
-      change: '+8%',
+      value: data.stats.diseases_detected,
+      change: data.stats.diseases_detected_change,
       icon: TriangleAlert,
       color: 'red',
     },
     {
       label: 'Healthy Crops',
       labelSi: 'සෞඛ්‍ය භෝග',
-      value: '72',
-      change: '+5%',
+      value: data.stats.healthy_crops,
+      change: data.stats.healthy_crops_change,
       icon: CircleCheck,
       color: 'green',
     },
     {
       label: 'Avg Confidence',
       labelSi: 'සාමාන්‍ය විශ්වාසය',
-      value: '91.2%',
-      change: '+2%',
+      value: data.stats.avg_confidence,
+      change: data.stats.avg_confidence_change,
       icon: TrendingUp,
       color: 'amber',
     },

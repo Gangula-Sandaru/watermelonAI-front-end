@@ -62,6 +62,10 @@ export function SatelliteMonitoringView() {
       const response = await fetch('http://127.0.0.1:8000/api/satellite/farms/', {
         headers: { 'Authorization': `Bearer ${token}` }
       });
+      if (response.status === 401) {
+        window.dispatchEvent(new CustomEvent('watermelon-auth-error'));
+        return;
+      }
       if (response.ok) {
         const data = await response.json();
         setFarms(data);
@@ -134,6 +138,11 @@ export function SatelliteMonitoringView() {
         },
         body: JSON.stringify(payload)
       });
+
+      if (response.status === 401) {
+        window.dispatchEvent(new CustomEvent('watermelon-auth-error'));
+        return;
+      }
 
       if (response.ok) {
         const newFarm = await response.json();

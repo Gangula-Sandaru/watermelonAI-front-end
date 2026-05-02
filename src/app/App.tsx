@@ -15,6 +15,8 @@ import { EmailVerification } from './components/auth/EmailVerification';
 import { LandingPage } from './components/landing/LandingPage';
 import { DataExportModule } from './components/DataExportModule';
 import { SettingsModule } from './components/SettingsModule';
+import { EscalationModule } from './components/EscalationModule';
+import { toast } from 'sonner';
 
 const LiveClock = () => {
   const [time, setTime] = useState(new Date());
@@ -51,6 +53,10 @@ export default function App() {
               'Authorization': `Bearer ${token}`
             }
           });
+          if (response.status === 401) {
+            handleLogout(true);
+            return;
+          }
           if (response.ok) {
             const data = await response.json();
             setUserData(data);
@@ -65,6 +71,15 @@ export default function App() {
     }
   }, [isAuthenticated]);
 
+  // Global listener for session expiration (401 errors from anywhere in the app)
+  useEffect(() => {
+    const handleAuthError = () => {
+      handleLogout(true);
+    };
+    window.addEventListener('watermelon-auth-error', handleAuthError);
+    return () => window.removeEventListener('watermelon-auth-error', handleAuthError);
+  }, []);
+
   const getInitialAuthMode = (): 'landing' | 'login' | 'register' | 'forgot-password' | 'reset-password' | 'verify-email' => {
     const path = window.location.pathname;
     if (path === '/login') return 'login';
@@ -77,7 +92,7 @@ export default function App() {
 
   const getInitialSection = () => {
     const path = window.location.pathname;
-    const validSections = ['dashboard', 'satellite', 'diagnosis', 'data', 'settings'];
+    const validSections = ['dashboard', 'satellite', 'diagnosis', 'data', 'escalate', 'settings'];
     const section = path.substring(1);
     if (validSections.includes(section)) return section;
     return 'dashboard';
@@ -114,7 +129,7 @@ export default function App() {
         else setAuthMode('landing');
       } else {
         const section = path.substring(1);
-        if (['dashboard', 'satellite', 'diagnosis', 'data', 'settings'].includes(section)) {
+        if (['dashboard', 'satellite', 'diagnosis', 'data', 'escalate', 'settings'].includes(section)) {
           setActiveSection(section);
         } else {
           setActiveSection('dashboard');
@@ -125,10 +140,16 @@ export default function App() {
     return () => window.removeEventListener('popstate', handlePopState);
   }, [isAuthenticated]);
 
-  const handleLogout = () => {
+  const handleLogout = (sessionExpired = false) => {
     localStorage.removeItem('access_token');
     setIsAuthenticated(false);
     setAuthMode('login');
+    if (sessionExpired) {
+      toast.error("Session expired. Please login again.", {
+        description: "Your secure session has timed out.",
+        duration: 5000,
+      });
+    }
   };
 
   if (!isAuthenticated) {
@@ -214,7 +235,9 @@ export default function App() {
                     {userData ? (userData.username || userData.email) : 'Loading...'}
                   </p>
                   <p className="text-xs text-[#2E7D32] font-semibold uppercase tracking-wider">
-                    {userData ? 'WatermelonAI User' : 'Fetching...'}
+                    {userData?.role 
+                      ? (userData.role === 'farmer' ? 'Farmer Account' : userData.role === 'researcher' ? 'Researcher Account' : 'Agri Officer Account') 
+                      : 'WatermelonAI User'}
                   </p>
                 </div>
 
@@ -286,6 +309,10 @@ export default function App() {
             <div className="animate-in fade-in slide-in-from-bottom-4 duration-700 pb-8">
               <DataExportModule />
             </div>
+          )}
+
+          {activeSection === 'escalate' && (
+            <EscalationModule />
           )}
 
           {activeSection === 'settings' && (

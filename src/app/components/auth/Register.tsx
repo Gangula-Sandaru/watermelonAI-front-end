@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Mail, Lock, User, ArrowRight, Sprout, Microscope, ChevronLeft, Loader2, Eye, EyeOff } from 'lucide-react';
+import { Mail, Lock, User, ArrowRight, Sprout, Microscope, ChevronLeft, Loader2, Eye, EyeOff, ShieldCheck } from 'lucide-react';
 import { toast } from 'sonner';
 
 const WatermelonIcon = ({ className }: { className?: string }) => (
@@ -28,7 +28,7 @@ interface RegisterProps {
 
 export function Register({ onRegister, onSwitchToLogin, onSwitchToVerifyEmail }: RegisterProps) {
   const [step, setStep] = useState<'role' | 'form'>('role');
-  const [role, setRole] = useState<'farmer' | 'researcher' | null>(null);
+  const [role, setRole] = useState<'farmer' | 'researcher' | 'officer' | null>(null);
 
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
@@ -79,7 +79,7 @@ export function Register({ onRegister, onSwitchToLogin, onSwitchToVerifyEmail }:
     }
   };
 
-  const handleRoleSelect = (selectedRole: 'farmer' | 'researcher') => {
+  const handleRoleSelect = (selectedRole: 'farmer' | 'researcher' | 'officer') => {
     setRole(selectedRole);
     setStep('form');
   };
@@ -113,7 +113,7 @@ export function Register({ onRegister, onSwitchToLogin, onSwitchToVerifyEmail }:
             <p className="text-lg text-gray-600 font-medium">Select how you will be participating on the platform.</p>
           </div>
           
-          <div className="grid md:grid-cols-2 gap-8">
+          <div className="grid md:grid-cols-3 gap-6">
             <button 
               onClick={() => handleRoleSelect('farmer')}
               className="flex flex-col items-center text-center p-8 bg-white/80 backdrop-blur-xl border border-white/80 rounded-[2.5rem] hover:border-green-400 hover:bg-white transition-all duration-300 group shadow-lg hover:shadow-2xl hover:-translate-y-2 ring-1 ring-black/5"
@@ -121,9 +121,9 @@ export function Register({ onRegister, onSwitchToLogin, onSwitchToVerifyEmail }:
               <div className="p-6 bg-gradient-to-br from-green-100 to-green-200 text-green-700 rounded-3xl mb-6 group-hover:scale-110 transition-transform shadow-inner">
                 <Sprout className="w-12 h-12" />
               </div>
-              <h3 className="text-2xl font-bold text-gray-900 group-hover:text-green-700 transition-colors mb-4">I am a Farmer</h3>
-              <p className="text-gray-500 leading-relaxed px-2 font-medium">
-                Monitor your crops remotely, detect diseases early with AI, and get micro-climate weather alerts.
+              <h3 className="text-2xl font-bold text-gray-900 group-hover:text-green-700 transition-colors mb-4">Farmer</h3>
+              <p className="text-[13px] text-gray-500 leading-relaxed px-2 font-medium">
+                Monitor your crops, detect diseases early with AI, and get micro-climate alerts.
               </p>
             </button>
 
@@ -134,9 +134,22 @@ export function Register({ onRegister, onSwitchToLogin, onSwitchToVerifyEmail }:
               <div className="p-6 bg-gradient-to-br from-blue-100 to-blue-200 text-blue-700 rounded-3xl mb-6 group-hover:scale-110 transition-transform shadow-inner">
                 <Microscope className="w-12 h-12" />
               </div>
-              <h3 className="text-2xl font-bold text-gray-900 group-hover:text-blue-700 transition-colors mb-4">I am a Researcher</h3>
-              <p className="text-gray-500 leading-relaxed px-2 font-medium">
-                Analyze aggregated agricultural data, evaluate smart-farming models, and view regional metadata.
+              <h3 className="text-2xl font-bold text-gray-900 group-hover:text-blue-700 transition-colors mb-4">Researcher</h3>
+              <p className="text-[13px] text-gray-500 leading-relaxed px-2 font-medium">
+                Analyze aggregated data, evaluate smart-farming models, and view regional metadata.
+              </p>
+            </button>
+
+            <button 
+              onClick={() => handleRoleSelect('officer')}
+              className="flex flex-col items-center text-center p-8 bg-white/80 backdrop-blur-xl border border-white/80 rounded-[2.5rem] hover:border-orange-400 hover:bg-white transition-all duration-300 group shadow-lg hover:shadow-2xl hover:-translate-y-2 ring-1 ring-black/5"
+            >
+              <div className="p-6 bg-gradient-to-br from-orange-100 to-orange-200 text-orange-700 rounded-3xl mb-6 group-hover:scale-110 transition-transform shadow-inner">
+                <ShieldCheck className="w-12 h-12" />
+              </div>
+              <h3 className="text-2xl font-bold text-gray-900 group-hover:text-orange-700 transition-colors mb-4">Agri Officer</h3>
+              <p className="text-[13px] text-gray-500 leading-relaxed px-2 font-medium">
+                Review farmer escalations, provide expert diagnostic support, and manage local regions.
               </p>
             </button>
           </div>
@@ -181,11 +194,15 @@ export function Register({ onRegister, onSwitchToLogin, onSwitchToVerifyEmail }:
             </button>
             
             <div className="flex items-center gap-4 mb-2">
-              <div className={`p-3 rounded-2xl shadow-sm ${role === 'farmer' ? 'bg-gradient-to-br from-green-100 to-green-50 text-green-700' : 'bg-gradient-to-br from-blue-100 to-blue-50 text-blue-700'}`}>
-                {role === 'farmer' ? <Sprout className="w-6 h-6" /> : <Microscope className="w-6 h-6" />}
+              <div className={`p-3 rounded-2xl shadow-sm ${
+                role === 'farmer' ? 'bg-gradient-to-br from-green-100 to-green-50 text-green-700' : 
+                role === 'researcher' ? 'bg-gradient-to-br from-blue-100 to-blue-50 text-blue-700' :
+                'bg-gradient-to-br from-orange-100 to-orange-50 text-orange-700'
+              }`}>
+                {role === 'farmer' ? <Sprout className="w-6 h-6" /> : role === 'researcher' ? <Microscope className="w-6 h-6" /> : <ShieldCheck className="w-6 h-6" />}
               </div>
               <h2 className="text-3xl font-extrabold text-gray-900 tracking-tight">
-                {role === 'farmer' ? 'Farmer Setup' : 'Researcher Setup'}
+                {role === 'farmer' ? 'Farmer Setup' : role === 'researcher' ? 'Researcher Setup' : 'Officer Setup'}
               </h2>
             </div>
             <p className="text-gray-500 mb-8 font-medium">
@@ -261,7 +278,9 @@ export function Register({ onRegister, onSwitchToLogin, onSwitchToVerifyEmail }:
                 type="submit"
                 disabled={isLoading}
                 className={`w-full flex items-center justify-center gap-2 px-6 py-4 mt-8 text-white rounded-2xl transition-all font-bold shadow-lg hover:shadow-xl hover:-translate-y-0.5 disabled:opacity-70 disabled:pointer-events-none ${
-                  role === 'farmer' ? 'bg-gradient-to-r from-[#2E7D32] to-green-600 hover:from-[#1B5E20] hover:to-green-700 shadow-green-900/20' : 'bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-700 hover:to-blue-600 shadow-blue-900/20'
+                  role === 'farmer' ? 'bg-gradient-to-r from-[#2E7D32] to-green-600 hover:from-[#1B5E20] hover:to-green-700 shadow-green-900/20' : 
+                  role === 'researcher' ? 'bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-700 hover:to-blue-600 shadow-blue-900/20' :
+                  'bg-gradient-to-r from-orange-600 to-orange-500 hover:from-orange-700 hover:to-orange-600 shadow-orange-900/20'
                 }`}
               >
                 {isLoading ? (

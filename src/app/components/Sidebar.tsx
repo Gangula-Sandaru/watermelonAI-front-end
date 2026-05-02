@@ -1,4 +1,4 @@
-import { LayoutDashboard, Satellite, Brain, Settings, FileText, MapPin, LogOut } from 'lucide-react';
+import { LayoutDashboard, Satellite, Brain, Settings, FileText, MapPin, LogOut, ShieldAlert } from 'lucide-react';
 
 interface SidebarProps {
   activeSection: string;
@@ -13,6 +13,7 @@ export function Sidebar({ activeSection, setActiveSection, onLogout, userData }:
     { id: 'satellite', icon: Satellite, label: 'Satellite View', labelSi: 'චන්ද්‍රිකා දර්ශනය' },
     { id: 'diagnosis', icon: Brain, label: 'AI Diagnosis', labelSi: 'AI රෝග විනිශ්චය' },
     { id: 'data', icon: FileText, label: 'Data Management', labelSi: 'දත්ත කළමනාකරණය' },
+    { id: 'escalate', icon: ShieldAlert, label: 'Escalate', labelSi: 'නිලධාරියාට යොමු කරන්න' },
     { id: 'settings', icon: Settings, label: 'Settings', labelSi: 'සැකසීම්' },
   ];
 

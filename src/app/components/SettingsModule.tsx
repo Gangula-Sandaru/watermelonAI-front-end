@@ -60,6 +60,10 @@ export const SettingsModule = () => {
         const response = await fetch(API_BASE, {
           headers: { 'Authorization': `Bearer ${token}` }
         });
+        if (response.status === 401) {
+          window.dispatchEvent(new CustomEvent('watermelon-auth-error'));
+          return;
+        }
         if (response.ok) {
           const data = await response.json();
           setDataRetention(data.retention_policy);
@@ -107,6 +111,11 @@ export const SettingsModule = () => {
         body: JSON.stringify(payload)
       });
 
+      if (response.status === 401) {
+        window.dispatchEvent(new CustomEvent('watermelon-auth-error'));
+        return;
+      }
+
       if (response.ok) {
         toast.success("Settings saved successfully");
       } else {
@@ -127,6 +136,10 @@ export const SettingsModule = () => {
           method: 'POST',
           headers: { 'Authorization': `Bearer ${token}` }
         });
+        if (response.status === 401) {
+          window.dispatchEvent(new CustomEvent('watermelon-auth-error'));
+          return;
+        }
         if (response.ok) {
           toast.success("All scan history has been cleared");
         } else {
