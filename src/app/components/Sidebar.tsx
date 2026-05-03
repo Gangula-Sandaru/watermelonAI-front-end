@@ -1,21 +1,26 @@
-import { LayoutDashboard, Satellite, Brain, Settings, FileText, MapPin, LogOut, ShieldAlert } from 'lucide-react';
+import { LayoutDashboard, Satellite, Brain, Settings, FileText, MapPin, LogOut, ShieldAlert, MessageSquare } from 'lucide-react';
 
 interface SidebarProps {
   activeSection: string;
   setActiveSection: (section: string) => void;
   onLogout: () => void;
-  userData: {username?: string, email?: string} | null;
+  userData: { username?: string, email?: string, role?: string } | null;
 }
 
 export function Sidebar({ activeSection, setActiveSection, onLogout, userData }: SidebarProps) {
+  const role = userData?.role?.toLowerCase()?.includes('officer') ? 'officer' : (userData?.role || 'farmer');
+
   const menuItems = [
     { id: 'dashboard', icon: LayoutDashboard, label: 'Dashboard', labelSi: 'උපකරණ පුවරුව' },
-    { id: 'satellite', icon: Satellite, label: 'Satellite View', labelSi: 'චන්ද්‍රිකා දර්ශනය' },
-    { id: 'diagnosis', icon: Brain, label: 'AI Diagnosis', labelSi: 'AI රෝග විනිශ්චය' },
-    { id: 'data', icon: FileText, label: 'Data Management', labelSi: 'දත්ත කළමනාකරණය' },
-    { id: 'escalate', icon: ShieldAlert, label: 'Escalate', labelSi: 'නිලධාරියාට යොමු කරන්න' },
+    { id: 'satellite', icon: Satellite, label: 'Satellite View', labelSi: 'චන්ද්‍රිකා දර්ශනය', roles: ['farmer', 'researcher'] },
+    { id: 'diagnosis', icon: Brain, label: 'AI Diagnosis', labelSi: 'AI රෝග විනිශ්චය', roles: ['farmer'] },
+    { id: 'data', icon: FileText, label: 'Data Management', labelSi: 'දත්ත කළමනාකරණය', roles: ['farmer', 'officer', 'researcher'] },
+    { id: 'communications', icon: MessageSquare, label: 'Communications', labelSi: 'සන්නිවේදන', roles: ['officer'] },
+    { id: 'escalate', icon: ShieldAlert, label: 'Escalate', labelSi: 'නිලධාරියාට යොමු කරන්න', roles: ['farmer'] },
     { id: 'settings', icon: Settings, label: 'Settings', labelSi: 'සැකසීම්' },
   ];
+
+  const filteredItems = menuItems.filter(item => !item.roles || item.roles.includes(role));
 
   return (
     <aside className="w-64 bg-white border-r border-gray-200 h-screen flex flex-col">
@@ -35,18 +40,17 @@ export function Sidebar({ activeSection, setActiveSection, onLogout, userData }:
       {/* Navigation */}
       <nav className="flex-1 p-4">
         <ul className="space-y-2">
-          {menuItems.map((item) => {
+          {filteredItems.map((item) => {
             const Icon = item.icon;
             const isActive = activeSection === item.id;
             return (
               <li key={item.id}>
                 <button
                   onClick={() => setActiveSection(item.id)}
-                  className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all ${
-                    isActive
+                  className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all ${isActive
                       ? 'bg-[#2E7D32] text-white shadow-md'
                       : 'text-gray-700 hover:bg-gray-100'
-                  }`}
+                    }`}
                 >
                   <Icon className="w-5 h-5" />
                   <div className="flex-1 text-left">
@@ -74,7 +78,7 @@ export function Sidebar({ activeSection, setActiveSection, onLogout, userData }:
             </p>
             <p className="text-xs text-gray-500 truncate">WatermelonAI</p>
           </div>
-          <button 
+          <button
             onClick={onLogout}
             title="Logout"
             className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors flex-shrink-0"

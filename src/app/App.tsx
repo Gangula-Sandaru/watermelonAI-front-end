@@ -16,6 +16,7 @@ import { LandingPage } from './components/landing/LandingPage';
 import { DataExportModule } from './components/DataExportModule';
 import { SettingsModule } from './components/SettingsModule';
 import { EscalationModule } from './components/EscalationModule';
+import { CommunicationModule } from './components/CommunicationModule';
 import { toast } from 'sonner';
 
 const LiveClock = () => {
@@ -41,7 +42,7 @@ export default function App() {
     return !!localStorage.getItem('access_token');
   });
 
-  const [userData, setUserData] = useState<{ username?: string, email?: string } | null>(null);
+  const [userData, setUserData] = useState<{ username?: string, email?: string, role?: string } | null>(null);
 
   useEffect(() => {
     if (isAuthenticated) {
@@ -92,7 +93,7 @@ export default function App() {
 
   const getInitialSection = () => {
     const path = window.location.pathname;
-    const validSections = ['dashboard', 'satellite', 'diagnosis', 'data', 'escalate', 'settings'];
+    const validSections = ['dashboard', 'satellite', 'diagnosis', 'data', 'communications', 'escalate', 'settings'];
     const section = path.substring(1);
     if (validSections.includes(section)) return section;
     return 'dashboard';
@@ -129,7 +130,7 @@ export default function App() {
         else setAuthMode('landing');
       } else {
         const section = path.substring(1);
-        if (['dashboard', 'satellite', 'diagnosis', 'data', 'escalate', 'settings'].includes(section)) {
+        if (['dashboard', 'satellite', 'diagnosis', 'data', 'communications', 'escalate', 'settings'].includes(section)) {
           setActiveSection(section);
         } else {
           setActiveSection('dashboard');
@@ -215,14 +216,14 @@ export default function App() {
             <div className="flex items-center justify-between">
               <div>
                 <h2 className="text-2xl font-bold text-gray-900">
-                  {activeSection === 'dashboard' && 'Analytics Dashboard'}
+                  {activeSection === 'dashboard' && (userData?.role?.toLowerCase()?.includes('officer') ? 'Officer Dashboard' : 'Analytics Dashboard')}
                   {activeSection === 'satellite' && 'Satellite Monitoring'}
                   {activeSection === 'diagnosis' && 'AI Disease Diagnosis'}
                   {activeSection === 'data' && 'Data Management'}
                   {activeSection === 'settings' && 'Settings'}
                 </h2>
                 <p className="text-sm text-gray-500">
-                  {activeSection === 'dashboard' && 'විශ්ලේෂණ උපකරණ පුවරුව'}
+                  {activeSection === 'dashboard' && (userData?.role?.toLowerCase()?.includes('officer') ? 'නිලධාරි උපකරණ පුවරුව' : 'විශ්ලේෂණ උපකරණ පුවරුව')}
                   {activeSection === 'satellite' && 'චන්ද්‍රිකා අධීක්ෂණය'}
                   {activeSection === 'diagnosis' && 'AI රෝග විනිශ්චය'}
                   {activeSection === 'data' && 'දත්ත කළමනාකරණය'}
@@ -235,8 +236,8 @@ export default function App() {
                     {userData ? (userData.username || userData.email) : 'Loading...'}
                   </p>
                   <p className="text-xs text-[#2E7D32] font-semibold uppercase tracking-wider">
-                    {userData?.role 
-                      ? (userData.role === 'farmer' ? 'Farmer Account' : userData.role === 'researcher' ? 'Researcher Account' : 'Agri Officer Account') 
+                    {userData?.role
+                      ? (userData.role === 'farmer' ? 'Farmer Account' : userData.role === 'researcher' ? 'Researcher Account' : 'Agri Officer Account')
                       : 'WatermelonAI User'}
                   </p>
                 </div>
@@ -260,22 +261,22 @@ export default function App() {
         {/* Content Sections */}
         <div className="p-8">
           {activeSection === 'dashboard' && (
-            <div className="space-y-6">
-              {/* Analytics Overview */}
-              <AnalyticsDashboard />
-
-              {/* Dashboard Grid */}
-              <div className="grid grid-cols-3 gap-6">
-                <div className="col-span-2">
-                  <SatelliteMonitoringView />
-                </div>
-                <div>
-                  <WeatherRiskWidget />
-                </div>
-              </div>
-
-              {/* Recent Scans */}
-              <RecentScansTable />
+            <div className="space-y-8">
+              <AnalyticsDashboard userData={userData} />
+              
+              {!userData?.role?.toLowerCase()?.includes('officer') && !userData?.role?.toLowerCase()?.includes('researcher') && (
+                <>
+                  <div className="grid grid-cols-3 gap-6">
+                    <div className="col-span-2">
+                      <SatelliteMonitoringView />
+                    </div>
+                    <div>
+                      <WeatherRiskWidget />
+                    </div>
+                  </div>
+                  <RecentScansTable />
+                </>
+              )}
             </div>
           )}
 
@@ -313,6 +314,10 @@ export default function App() {
 
           {activeSection === 'escalate' && (
             <EscalationModule />
+          )}
+
+          {activeSection === 'communications' && (
+            <CommunicationModule />
           )}
 
           {activeSection === 'settings' && (

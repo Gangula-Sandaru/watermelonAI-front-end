@@ -143,9 +143,9 @@ export const EscalationModule = () => {
           <div>
             <h3 className="font-semibold text-gray-900 text-xl flex items-center gap-2">
               <ShieldAlert className="text-red-600" />
-              Agri-Officer Escalation
+              Expert Consultation
             </h3>
-            <p className="text-sm text-gray-500">කෘෂිකර්ම නිලධාරියා වෙත යොමු කිරීම</p>
+            <p className="text-sm text-gray-500">කෘෂිකර්ම විශේෂඥයෙකුගේ සහාය ලබා ගැනීම</p>
           </div>
           <div className="flex gap-2">
             {[1, 2, 3].map((step) => (
@@ -199,7 +199,7 @@ export const EscalationModule = () => {
           <div className={`space-y-4 transition-all duration-300 ${activeStep !== 2 ? 'opacity-40 grayscale pointer-events-none' : ''}`}>
             <h4 className="font-bold text-gray-900 flex items-center gap-2">
               <User size={18} className="text-[#2E7D32]" />
-              2. Choose Nearby Officer
+              2. Choose an Expert
             </h4>
             <div className="space-y-3">
               <div className="relative mb-4">
