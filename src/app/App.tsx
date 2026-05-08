@@ -17,6 +17,8 @@ import { DataExportModule } from './components/DataExportModule';
 import { SettingsModule } from './components/SettingsModule';
 import { EscalationModule } from './components/EscalationModule';
 import { CommunicationModule } from './components/CommunicationModule';
+import { OfficerEscalationTable } from './components/OfficerEscalationTable';
+import { AITrainingCenter } from './components/AITrainingCenter';
 import { toast } from 'sonner';
 
 const LiveClock = () => {
@@ -61,6 +63,12 @@ export default function App() {
           if (response.ok) {
             const data = await response.json();
             setUserData(data);
+            
+            // Auto-redirect if admin to AI Training
+            const isAdminUser = data.role === 'admin' || data.role === 'superadmin' || data.is_superuser === true;
+            if (isAdminUser && activeSection === 'dashboard') {
+              setActiveSection('ai-training');
+            }
           }
         } catch (error) {
           console.error("Failed to fetch profile", error);
@@ -93,7 +101,7 @@ export default function App() {
 
   const getInitialSection = () => {
     const path = window.location.pathname;
-    const validSections = ['dashboard', 'satellite', 'diagnosis', 'data', 'communications', 'escalate', 'settings'];
+    const validSections = ['dashboard', 'satellite', 'diagnosis', 'data', 'communications', 'expert-review', 'ai-training', 'escalate', 'settings'];
     const section = path.substring(1);
     if (validSections.includes(section)) return section;
     return 'dashboard';
@@ -130,7 +138,7 @@ export default function App() {
         else setAuthMode('landing');
       } else {
         const section = path.substring(1);
-        if (['dashboard', 'satellite', 'diagnosis', 'data', 'communications', 'escalate', 'settings'].includes(section)) {
+        if (['dashboard', 'satellite', 'diagnosis', 'data', 'communications', 'expert-review', 'ai-training', 'escalate', 'settings'].includes(section)) {
           setActiveSection(section);
         } else {
           setActiveSection('dashboard');
@@ -198,6 +206,9 @@ export default function App() {
     );
   }
 
+  const role = userData?.role?.toLowerCase();
+  const isAdmin = role === 'admin' || role === 'superadmin' || userData?.is_superuser === true;
+
   return (
     <div className="flex h-screen bg-gray-50 overflow-hidden">
       {/* Sidebar Navigation */}
@@ -216,17 +227,23 @@ export default function App() {
             <div className="flex items-center justify-between">
               <div>
                 <h2 className="text-2xl font-bold text-gray-900">
-                  {activeSection === 'dashboard' && (userData?.role?.toLowerCase()?.includes('officer') ? 'Officer Dashboard' : 'Analytics Dashboard')}
+                  {activeSection === 'dashboard' && (userData?.role?.toLowerCase()?.includes('officer') ? 'Officer Dashboard' : isAdmin ? 'Admin Dashboard' : 'Analytics Dashboard')}
                   {activeSection === 'satellite' && 'Satellite Monitoring'}
                   {activeSection === 'diagnosis' && 'AI Disease Diagnosis'}
                   {activeSection === 'data' && 'Data Management'}
+                  {activeSection === 'communications' && 'Communications Hub'}
+                  {activeSection === 'expert-review' && 'Expert Review Queue'}
+                  {activeSection === 'ai-training' && 'AI Training Center'}
                   {activeSection === 'settings' && 'Settings'}
                 </h2>
                 <p className="text-sm text-gray-500">
-                  {activeSection === 'dashboard' && (userData?.role?.toLowerCase()?.includes('officer') ? 'නිලධාරි උපකරණ පුවරුව' : 'විශ්ලේෂණ උපකරණ පුවරුව')}
+                  {activeSection === 'dashboard' && (userData?.role?.toLowerCase()?.includes('officer') ? 'නිලධාරි උපකරණ පුවරුව' : isAdmin ? 'පරිපාලක උපකරණ පුවරුව' : 'විශ්ලේෂණ උපකරණ පුවරුව')}
                   {activeSection === 'satellite' && 'චන්ද්‍රිකා අධීක්ෂණය'}
                   {activeSection === 'diagnosis' && 'AI රෝග විනිශ්චය'}
                   {activeSection === 'data' && 'දත්ත කළමනාකරණය'}
+                  {activeSection === 'communications' && 'සන්නිවේදන කේන්ද්‍රය'}
+                  {activeSection === 'expert-review' && 'විශේෂඥ සමාලෝචන පෝලිම'}
+                  {activeSection === 'ai-training' && 'AI පුහුණු මධ්‍යස්ථානය'}
                   {activeSection === 'settings' && 'සැකසීම්'}
                 </p>
               </div>
@@ -236,9 +253,12 @@ export default function App() {
                     {userData ? (userData.username || userData.email) : 'Loading...'}
                   </p>
                   <p className="text-xs text-[#2E7D32] font-semibold uppercase tracking-wider">
-                    {userData?.role
-                      ? (userData.role === 'farmer' ? 'Farmer Account' : userData.role === 'researcher' ? 'Researcher Account' : 'Agri Officer Account')
-                      : 'WatermelonAI User'}
+                    {isAdmin ? 'System Administrator' : (
+                      userData?.role === 'agri_officer' || userData?.role === 'officer' ? 'Agri Officer Account' :
+                      userData?.role === 'researcher' ? 'Researcher Account' :
+                      userData?.role === 'farmer' ? 'Farmer Account' :
+                      'WatermelonAI User'
+                    )}
                   </p>
                 </div>
 
@@ -308,7 +328,7 @@ export default function App() {
 
           {activeSection === 'data' && (
             <div className="animate-in fade-in slide-in-from-bottom-4 duration-700 pb-8">
-              <DataExportModule />
+              <DataExportModule userData={userData} />
             </div>
           )}
 
@@ -318,6 +338,14 @@ export default function App() {
 
           {activeSection === 'communications' && (
             <CommunicationModule />
+          )}
+          
+          {activeSection === 'expert-review' && (
+            <OfficerEscalationTable setActiveSection={setActiveSection} />
+          )}
+
+          {activeSection === 'ai-training' && (
+            <AITrainingCenter />
           )}
 
           {activeSection === 'settings' && (

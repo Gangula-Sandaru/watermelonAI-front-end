@@ -22,7 +22,18 @@ export const CommunicationModule = () => {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       if (response.ok) {
-        setContacts(await response.json());
+        const fetchedContacts = await response.json();
+        setContacts(fetchedContacts);
+
+        // Auto-select if navigating from Expert Review
+        const pendingId = localStorage.getItem('pending_chat_esc_id');
+        if (pendingId) {
+          const contact = fetchedContacts.find((c: any) => c.esc_id?.toString() === pendingId);
+          if (contact) {
+            setSelectedContact(contact);
+            localStorage.removeItem('pending_chat_esc_id');
+          }
+        }
       }
     } catch (err) {
       console.error("Failed to fetch contacts", err);
@@ -36,7 +47,10 @@ export const CommunicationModule = () => {
   }, [activeTab]);
 
   const fetchMessages = async (contact: any) => {
-    if (!contact.esc_id) return;
+    if (!contact.esc_id) {
+      setMessages([]);
+      return;
+    }
     try {
       const token = localStorage.getItem('access_token') || localStorage.getItem('token');
       const response = await fetch(`http://127.0.0.1:8000/api/escalation/requests/${contact.esc_id}/chat/`, {
@@ -243,27 +257,34 @@ export const CommunicationModule = () => {
 
               {/* Chat Input */}
               <div className="p-6 bg-white border-t border-gray-100">
-                <div className="flex items-center gap-4">
-                  <Button variant="ghost" className="p-2 h-auto rounded-xl text-gray-400 hover:text-[#2E7D32]">
-                    <FileText size={20} />
-                  </Button>
-                  <div className="flex-1 relative">
-                    <input 
-                      type="text" 
-                      value={newMessage}
-                      onChange={(e) => setNewMessage(e.target.value)}
-                      onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()}
-                      placeholder="Type your professional response..."
-                      className="w-full pl-6 pr-12 py-4 bg-gray-50 border border-gray-100 rounded-2xl text-sm font-medium outline-none focus:border-[#2E7D32] focus:bg-white transition-all shadow-inner"
-                    />
-                    <Button 
-                      onClick={handleSendMessage}
-                      className="absolute right-2 top-1/2 -translate-y-1/2 bg-[#2E7D32] hover:bg-[#1B5E20] text-white w-10 h-10 p-0 rounded-xl shadow-lg shadow-green-900/20 transition-all active:scale-95"
-                    >
-                      <Send size={18} />
-                    </Button>
+                {!selectedContact.esc_id ? (
+                  <div className="flex items-center justify-center p-4 bg-amber-50 rounded-2xl border border-amber-100 gap-3">
+                    <AlertTriangle className="text-amber-500" size={20} />
+                    <p className="text-sm font-bold text-amber-700">No active escalation case for this farmer.</p>
                   </div>
-                </div>
+                ) : (
+                  <div className="flex items-center gap-4">
+                    <Button variant="ghost" className="p-2 h-auto rounded-xl text-gray-400 hover:text-[#2E7D32]">
+                      <FileText size={20} />
+                    </Button>
+                    <div className="flex-1 relative">
+                      <input 
+                        type="text" 
+                        value={newMessage}
+                        onChange={(e) => setNewMessage(e.target.value)}
+                        onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()}
+                        placeholder="Type your professional response..."
+                        className="w-full pl-6 pr-12 py-4 bg-gray-50 border border-gray-100 rounded-2xl text-sm font-medium outline-none focus:border-[#2E7D32] focus:bg-white transition-all shadow-inner"
+                      />
+                      <Button 
+                        onClick={handleSendMessage}
+                        className="absolute right-2 top-1/2 -translate-y-1/2 bg-[#2E7D32] hover:bg-[#1B5E20] text-white w-10 h-10 p-0 rounded-xl shadow-lg shadow-green-900/20 transition-all active:scale-95"
+                      >
+                        <Send size={18} />
+                      </Button>
+                    </div>
+                  </div>
+                )}
               </div>
             </>
           ) : (

@@ -175,7 +175,7 @@ export const EscalationModule = () => {
               <History size={18} className="text-[#2E7D32]" />
               1. Select Problem Case
             </h4>
-            <div className="space-y-3">
+            <div className="space-y-3 max-h-[480px] overflow-y-auto pr-2 custom-scrollbar">
               {recentScans.map((scan) => (
                 <div 
                   key={scan.id}
@@ -186,7 +186,15 @@ export const EscalationModule = () => {
                 >
                   <div className="flex justify-between items-start mb-1">
                     <span className="text-[10px] font-bold text-gray-400">{scan.request_uuid.substring(0, 8)}</span>
-                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-red-100 text-red-700">LOW CONFIDENCE</span>
+                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                      (scan.prediction?.confidence || 0) >= 0.8 ? 'bg-green-100 text-green-700' :
+                      (scan.prediction?.confidence || 0) >= 0.5 ? 'bg-amber-100 text-amber-700' :
+                      'bg-red-100 text-red-700'
+                    }`}>
+                      {(scan.prediction?.confidence || 0) >= 0.8 ? 'HIGH CONFIDENCE' :
+                       (scan.prediction?.confidence || 0) >= 0.5 ? 'MODERATE CONFIDENCE' :
+                       'LOW CONFIDENCE'}
+                    </span>
                   </div>
                   <p className="font-bold text-gray-900 text-sm">{scan.prediction?.disease_name || 'Processing...'}</p>
                   <p className="text-[10px] text-gray-500">{new Date(scan.created_at).toLocaleDateString()} • AI Match: {scan.prediction ? (scan.prediction.confidence * 100).toFixed(0) + '%' : 'N/A'}</p>
@@ -201,7 +209,7 @@ export const EscalationModule = () => {
               <User size={18} className="text-[#2E7D32]" />
               2. Choose an Expert
             </h4>
-            <div className="space-y-3">
+            <div className="space-y-3 max-h-[480px] overflow-y-auto pr-2 custom-scrollbar">
               <div className="relative mb-4">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4" />
                 <input 
@@ -210,27 +218,35 @@ export const EscalationModule = () => {
                   className="w-full pl-9 pr-4 py-2 border border-gray-200 rounded-lg text-xs outline-none focus:border-[#2E7D32]"
                 />
               </div>
-              {officers.map((officer) => (
-                <div 
-                  key={officer.id}
-                  onClick={() => handleSelectOfficer(officer)}
-                  className={`p-3 rounded-xl border-2 transition-all hover:shadow-md ${
-                    !officer.is_available ? 'opacity-50 cursor-not-allowed bg-gray-50' : 'cursor-pointer'
-                  } ${
-                    selectedOfficer?.id === officer.id ? 'border-[#2E7D32] bg-green-50 shadow-sm' : 'border-gray-100 hover:border-gray-200'
-                  }`}
-                >
-                  <div className="flex justify-between items-center mb-1">
-                    <p className="font-bold text-gray-900 text-sm">{officer.name}</p>
-                    <span className={`text-[10px] font-bold ${officer.is_available ? 'text-green-600' : 'text-gray-400'}`}>
-                      {officer.is_available ? 'Available' : 'Unavailable'}
-                    </span>
+              {officers.length > 0 ? (
+                officers.map((officer) => (
+                  <div 
+                    key={officer.id}
+                    onClick={() => handleSelectOfficer(officer)}
+                    className={`p-3 rounded-xl border-2 transition-all hover:shadow-md ${
+                      !officer.is_available ? 'opacity-50 cursor-not-allowed bg-gray-50' : 'cursor-pointer'
+                    } ${
+                      selectedOfficer?.id === officer.id ? 'border-[#2E7D32] bg-green-50 shadow-sm' : 'border-gray-100 hover:border-gray-200'
+                    }`}
+                  >
+                    <div className="flex justify-between items-center mb-1">
+                      <p className="font-bold text-gray-900 text-sm">{officer.name}</p>
+                      <span className={`text-[10px] font-bold ${officer.is_available ? 'text-green-600' : 'text-gray-400'}`}>
+                        {officer.is_available ? 'Available' : 'Unavailable'}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2 text-[10px] text-gray-500">
+                      <MapPin size={10} /> {officer.district} • {officer.position}
+                    </div>
                   </div>
-                  <div className="flex items-center gap-2 text-[10px] text-gray-500">
-                    <MapPin size={10} /> {officer.district} • {officer.position}
-                  </div>
+                ))
+              ) : (
+                <div className="flex flex-col items-center justify-center py-8 text-center text-gray-400 border-2 border-dashed border-gray-100 rounded-2xl">
+                  <User size={32} className="mb-2 opacity-20" />
+                  <p className="text-xs font-bold">No officers found in your area.</p>
+                  <p className="text-[10px]">Please try again later or contact support.</p>
                 </div>
-              ))}
+              )}
             </div>
           </div>
 
@@ -299,32 +315,74 @@ export const EscalationModule = () => {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {requests.map((req) => (
-                <tr key={req.id} className="hover:bg-gray-50 transition-colors">
-                  <td className="px-4 py-4 font-bold text-gray-900">REQ-{String(req.id).padStart(3, '0')}</td>
-                  <td className="px-4 py-4 text-gray-700">{req.officer_name}</td>
-                  <td className="px-4 py-4 text-gray-500 font-mono text-xs">{req.scan_id?.substring(0, 8)}</td>
-                  <td className="px-4 py-4">
-                    <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold ${
-                      req.status === 'PENDING' ? 'bg-amber-100 text-amber-700' : 'bg-green-100 text-green-700'
-                    }`}>
-                      {req.status}
-                    </span>
-                  </td>
-                  <td className="px-4 py-4 text-gray-500">{new Date(req.created_at).toLocaleDateString()}</td>
-                  <td className="px-4 py-4 text-right">
-                    <Button 
-                      variant="outline" 
-                      size="sm" 
-                      onClick={() => handleOpenChat(req)}
-                      className="text-[#2E7D32] border-[#2E7D32] hover:bg-green-50 gap-2"
-                    >
-                      <MessageSquare size={14} />
-                      Chat
-                    </Button>
+              {requests.length > 0 ? (
+                requests.map((req) => (
+                  <React.Fragment key={req.id}>
+                    <tr className="hover:bg-gray-50 transition-colors">
+                      <td className="px-4 py-4 font-bold text-gray-900">REQ-{String(req.id).padStart(3, '0')}</td>
+                      <td className="px-4 py-4 text-gray-700">{req.officer_name}</td>
+                      <td className="px-4 py-4 text-gray-500 font-mono text-xs">{req.scan_id?.substring(0, 8)}</td>
+                      <td className="px-4 py-4">
+                        <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold ${
+                          req.status === 'PENDING' ? 'bg-amber-100 text-amber-700' : 
+                          req.status === 'RESOLVED' ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700'
+                        }`}>
+                          {req.status}
+                        </span>
+                      </td>
+                      <td className="px-4 py-4 text-gray-500">{new Date(req.created_at).toLocaleDateString()}</td>
+                      <td className="px-4 py-4 text-right">
+                        <Button 
+                          variant="outline" 
+                          size="sm" 
+                          onClick={() => handleOpenChat(req)}
+                          className="text-[#2E7D32] border-[#2E7D32] hover:bg-green-50 gap-2"
+                        >
+                          <MessageSquare size={14} />
+                          Chat
+                        </Button>
+                      </td>
+                    </tr>
+                    {req.status === 'RESOLVED' && (req.final_conclusion || req.officer_comments) && (
+                      <tr className="bg-green-50/30">
+                        <td colSpan={6} className="px-6 py-4">
+                          <div className="flex gap-4 items-start border-l-4 border-[#2E7D32] pl-4">
+                            <div className="flex-1 space-y-2">
+                              <div className="flex items-center gap-2">
+                                <CheckCircle2 size={16} className="text-[#2E7D32]" />
+                                <span className="text-xs font-black text-[#2E7D32] uppercase tracking-wider">Expert Decision</span>
+                              </div>
+                              {req.final_conclusion && (
+                                <p className="text-sm font-bold text-gray-900 leading-snug">
+                                  {req.final_conclusion}
+                                </p>
+                              )}
+                              {req.officer_comments && (
+                                <p className="text-xs text-gray-600 italic">
+                                  Expert Notes: "{req.officer_comments}"
+                                </p>
+                              )}
+                            </div>
+                            <div className="text-[10px] text-[#2E7D32] font-bold bg-white px-3 py-1 rounded-full border border-[#2E7D32]/20">
+                              Official Resolution
+                            </div>
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                  </React.Fragment>
+                ))
+              ) : (
+                <tr>
+                  <td colSpan={6} className="px-4 py-12 text-center text-gray-400">
+                    <div className="flex flex-col items-center gap-2">
+                      <History size={32} className="opacity-20" />
+                      <p className="font-bold">No active escalations</p>
+                      <p className="text-xs">Escalate a problem scan to get expert advice.</p>
+                    </div>
                   </td>
                 </tr>
-              ))}
+              )}
             </tbody>
           </table>
         </div>

@@ -112,7 +112,10 @@ export function AIDiagnosisModule() {
 
       if (response.ok) {
         setAnalysisResult(data);
-        fetchHistory(); // Refresh history with new scan
+        fetchHistory(); // Refresh local history
+        
+        // Notify other components to refresh
+        window.dispatchEvent(new CustomEvent('watermelon-new-scan'));
 
         // CHECK TRIGGER FOR UNKNOWN DISEASE MODAL
         const diseaseName = data.prediction?.disease_name?.toLowerCase() || '';
@@ -181,7 +184,11 @@ export function AIDiagnosisModule() {
                   <X className="w-4 h-4" />
                 </button>
                 <img
-                  src={previewUrl.startsWith('http') || previewUrl.startsWith('/') ? `http://127.0.0.1:8000${previewUrl}` : previewUrl}
+                  src={typeof previewUrl === 'string' && previewUrl ? (
+                    previewUrl.startsWith('http') || previewUrl.startsWith('blob:') 
+                      ? previewUrl 
+                      : `http://127.0.0.1:8000${previewUrl.startsWith('/media/') ? '' : previewUrl.startsWith('media/') ? '' : '/media/'}${previewUrl.startsWith('/') ? '' : '/'}${previewUrl}`
+                  ) : ''}
                   alt="Selected leaf"
                   className="w-full h-full object-cover absolute inset-0"
                 />

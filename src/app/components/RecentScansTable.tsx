@@ -21,6 +21,17 @@ export function RecentScansTable() {
   }, [currentPage]);
 
   useEffect(() => {
+    const handleNewScan = () => {
+      fetchScans();
+    };
+
+    window.addEventListener('watermelon-new-scan', handleNewScan);
+    return () => {
+      window.removeEventListener('watermelon-new-scan', handleNewScan);
+    };
+  }, []);
+
+  useEffect(() => {
     fetchScans();
   }, []);
 

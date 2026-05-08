@@ -1,4 +1,4 @@
-import { LayoutDashboard, Satellite, Brain, Settings, FileText, MapPin, LogOut, ShieldAlert, MessageSquare } from 'lucide-react';
+import { LayoutDashboard, Satellite, Brain, Settings, FileText, MapPin, LogOut, ShieldAlert, MessageSquare, Database, ShieldCheck } from 'lucide-react';
 
 interface SidebarProps {
   activeSection: string;
@@ -8,19 +8,23 @@ interface SidebarProps {
 }
 
 export function Sidebar({ activeSection, setActiveSection, onLogout, userData }: SidebarProps) {
-  const role = userData?.role?.toLowerCase()?.includes('officer') ? 'officer' : (userData?.role || 'farmer');
+  const role = userData?.role?.toLowerCase();
+  const isOfficer = role?.includes('officer');
+  const isAdmin = role === 'admin' || role === 'superadmin' || (userData as any)?.is_superuser === true;
+  const effectiveRole = isAdmin ? 'admin' : (isOfficer ? 'officer' : 'farmer');
 
   const menuItems = [
-    { id: 'dashboard', icon: LayoutDashboard, label: 'Dashboard', labelSi: 'උපකරණ පුවරුව' },
+    { id: 'dashboard', icon: LayoutDashboard, label: isAdmin ? 'Admin Dashboard' : 'Dashboard', labelSi: isAdmin ? 'පරිපාලක පුවරුව' : 'උපකරණ පුවරුව', roles: ['farmer', 'officer', 'admin'] },
     { id: 'satellite', icon: Satellite, label: 'Satellite View', labelSi: 'චන්ද්‍රිකා දර්ශනය', roles: ['farmer', 'researcher'] },
     { id: 'diagnosis', icon: Brain, label: 'AI Diagnosis', labelSi: 'AI රෝග විනිශ්චය', roles: ['farmer'] },
-    { id: 'data', icon: FileText, label: 'Data Management', labelSi: 'දත්ත කළමනාකරණය', roles: ['farmer', 'officer', 'researcher'] },
-    { id: 'communications', icon: MessageSquare, label: 'Communications', labelSi: 'සන්නිවේදන', roles: ['officer'] },
+    { id: 'expert-review', icon: ShieldAlert, label: 'Expert Review', labelSi: 'විශේෂඥ සමාලෝචනය', roles: ['officer'] },
+    { id: 'ai-training', icon: Database, label: 'AI Feedback Loop', labelSi: 'AI ප්‍රතිපෝෂණ', roles: ['officer', 'researcher', 'admin'] },
     { id: 'escalate', icon: ShieldAlert, label: 'Escalate', labelSi: 'නිලධාරියාට යොමු කරන්න', roles: ['farmer'] },
-    { id: 'settings', icon: Settings, label: 'Settings', labelSi: 'සැකසීම්' },
+    { id: 'data', icon: FileText, label: 'Data Management', labelSi: 'දත්ත කළමනාකරණය', roles: ['farmer', 'officer', 'researcher'] },
+    { id: 'settings', icon: Settings, label: 'Settings', labelSi: 'සැකසීම්', roles: ['farmer', 'officer', 'researcher', 'admin'] },
   ];
 
-  const filteredItems = menuItems.filter(item => !item.roles || item.roles.includes(role));
+  const filteredItems = menuItems.filter(item => !item.roles || item.roles.includes(effectiveRole));
 
   return (
     <aside className="w-64 bg-white border-r border-gray-200 h-screen flex flex-col">

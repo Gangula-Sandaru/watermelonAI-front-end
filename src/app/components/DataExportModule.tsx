@@ -3,15 +3,55 @@ import { Card } from './ui/card';
 import { Button } from './ui/button';
 import { Download, FileText, Calendar, Filter, Database, FileSpreadsheet, CheckCircle2, Loader2, History, Trash2 } from 'lucide-react';
 
-export const DataExportModule = () => {
+export const DataExportModule = ({ userData }: { userData: any }) => {
+  const role = userData?.role?.toLowerCase() || 'farmer';
+  const isOfficer = role.includes('officer');
+  const isResearcher = role.includes('researcher');
+
   const [selectedFormat, setSelectedFormat] = useState<'csv' | 'pdf' | 'excel'>('csv');
-  const [selectedDataType, setSelectedDataType] = useState<'all' | 'disease' | 'satellite' | 'yield'>('all');
+  const [selectedDataType, setSelectedDataType] = useState<string>('all');
   const [dateRange, setDateRange] = useState<'7days' | '30days' | 'thisYear' | 'custom'>('30days');
   const [isExporting, setIsExporting] = useState(false);
   const [exportSuccess, setExportSuccess] = useState(false);
   const [exportHistory, setExportHistory] = useState<any[]>([]);
 
   const API_BASE = "http://127.0.0.1:8000/api/management/exports/";
+
+  // Define data types based on roles
+  const getDataTypes = () => {
+    if (isOfficer) {
+      return [
+        { id: 'escalations', label: 'Escalation Logs' },
+        { id: 'reviews', label: 'Expert Reviews' },
+        { id: 'regional', label: 'Regional Analytics' },
+        { id: 'disease', label: 'Disease Distribution' }
+      ];
+    }
+    if (isResearcher) {
+      return [
+        { id: 'global', label: 'Global Disease Data' },
+        { id: 'anonymized', label: 'Anonymized Scans' },
+        { id: 'outbreaks', label: 'Outbreak History' },
+        { id: 'trends', label: 'Migration Trends' }
+      ];
+    }
+    // Farmer
+    return [
+      { id: 'all', label: 'All Farm Data' },
+      { id: 'disease', label: 'My Disease Scans' },
+      { id: 'satellite', label: 'My Satellite Data' },
+      { id: 'yield', label: 'My Yield Predictions' }
+    ];
+  };
+
+  const dataTypes = getDataTypes();
+
+  // Set default selection if current one is not valid for role
+  React.useEffect(() => {
+    if (!dataTypes.find(t => t.id === selectedDataType)) {
+      setSelectedDataType(dataTypes[0].id);
+    }
+  }, [role]);
 
   const fetchHistory = async () => {
     try {
@@ -82,8 +122,12 @@ export const DataExportModule = () => {
     <Card className="p-6">
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h3 className="font-semibold text-gray-900">Data Export Center</h3>
-          <p className="text-sm text-gray-500">දත්ත අපනයන මධ්‍යස්ථානය</p>
+          <h3 className="font-semibold text-gray-900">
+            {isOfficer ? 'Administrative Data Export' : isResearcher ? 'Research Data Center' : 'Farm Data Export Center'}
+          </h3>
+          <p className="text-sm text-gray-500">
+            {isOfficer ? 'නිලධාරි දත්ත අපනයනය' : isResearcher ? 'පර්යේෂණ දත්ත මධ්‍යස්ථානය' : 'ගොවිපල දත්ත අපනයන මධ්‍යස්ථානය'}
+          </p>
         </div>
         <Database className="w-8 h-8 text-[#2E7D32]" />
       </div>
@@ -94,18 +138,13 @@ export const DataExportModule = () => {
           {/* Data Type */}
           <div>
             <h4 className="text-sm font-bold text-gray-700 mb-3 flex items-center gap-2">
-              <Filter size={16} className="text-[#2E7D32]" /> Select Data Type
+              <Filter size={16} className="text-[#2E7D32]" /> Select Export Category
             </h4>
             <div className="grid grid-cols-2 gap-3">
-              {[
-                { id: 'all', label: 'All Farm Data' },
-                { id: 'disease', label: 'Disease Scans' },
-                { id: 'satellite', label: 'Satellite Data' },
-                { id: 'yield', label: 'Yield Predictions' }
-              ].map((type) => (
+              {dataTypes.map((type) => (
                 <button
                   key={type.id}
-                  onClick={() => setSelectedDataType(type.id as any)}
+                  onClick={() => setSelectedDataType(type.id)}
                   className={`px-4 py-3 rounded-lg border text-sm font-medium transition-all ${
                     selectedDataType === type.id
                       ? 'border-[#2E7D32] bg-green-50 text-[#2E7D32] ring-1 ring-[#2E7D32]'
