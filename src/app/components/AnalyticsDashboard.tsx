@@ -76,7 +76,7 @@ export function AnalyticsDashboard({ userData }: AnalyticsDashboardProps) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[400px] gap-4">
         <Loader2 className="w-12 h-12 text-[#2E7D32] animate-spin" />
-        <p className="text-gray-500 font-medium animate-pulse">
+        <p className="text-gray-500 dark:text-gray-400 font-medium animate-pulse">
           {isAdmin ? 'Accessing admin metrics...' : isOfficer ? 'Loading expert data...' : 'Analyzing farm data...'}
         </p>
       </div>
@@ -117,10 +117,10 @@ export function AnalyticsDashboard({ userData }: AnalyticsDashboardProps) {
   };
 
   const colorMap: Record<string, { bg: string; text: string; icon: string }> = {
-    blue: { bg: 'bg-blue-50', text: 'text-blue-900', icon: 'text-blue-600' },
-    red: { bg: 'bg-red-50', text: 'text-red-900', icon: 'text-red-600' },
-    green: { bg: 'bg-green-50', text: 'text-green-900', icon: 'text-green-600' },
-    amber: { bg: 'bg-amber-50', text: 'text-amber-900', icon: 'text-amber-600' },
+    blue: { bg: 'bg-blue-50 dark:bg-blue-900/10', text: 'text-blue-900 dark:text-blue-300', icon: 'text-blue-600' },
+    red: { bg: 'bg-red-50 dark:bg-red-900/10', text: 'text-red-900 dark:text-red-300', icon: 'text-red-600' },
+    green: { bg: 'bg-green-50 dark:bg-green-900/10', text: 'text-green-900 dark:text-green-300', icon: 'text-green-600' },
+    amber: { bg: 'bg-amber-50 dark:bg-amber-900/10', text: 'text-amber-900 dark:text-amber-300', icon: 'text-amber-600' },
   };
 
   const stats = getStats();
@@ -137,8 +137,8 @@ export function AnalyticsDashboard({ userData }: AnalyticsDashboardProps) {
             <Card key={stat.label} className={`p-4 ${colors.bg} border-none shadow-sm`}>
               <div className="flex items-start justify-between">
                 <div className="flex-1">
-                  <p className="text-sm text-gray-600 mb-0.5">{stat.label}</p>
-                  <p className="text-[10px] text-gray-500">{stat.labelSi}</p>
+                  <p className="text-sm text-gray-600 dark:text-gray-400 mb-0.5">{stat.label}</p>
+                  <p className="text-[10px] text-gray-500 dark:text-gray-500">{stat.labelSi}</p>
                   <p className={`text-2xl font-bold ${colors.text} mt-2`}>{stat.value}</p>
                 </div>
                 <Icon className={`w-8 h-8 ${colors.icon}`} />
@@ -150,10 +150,10 @@ export function AnalyticsDashboard({ userData }: AnalyticsDashboardProps) {
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <Card className="md:col-span-2 p-6">
-          <h3 className="font-semibold text-gray-900 mb-1">
+          <h3 className="font-semibold text-gray-900 dark:text-white mb-1">
             {isAdmin ? 'System Activity' : isOfficer ? 'Service Resolution Trends' : isResearcher ? 'Regional Pathogen Spreading' : 'Weekly Scan Activity'}
           </h3>
-          <p className="text-sm text-gray-500 mb-6">
+          <p className="text-sm text-gray-500 dark:text-gray-400 mb-6">
             {isAdmin ? 'Global Performance Overview' : isOfficer ? '7 Day Case Analysis' : isResearcher ? 'Infection Migration Mapping' : 'Scan Volume Comparison'}
           </p>
           <div className="h-[300px] w-full">
@@ -166,18 +166,25 @@ export function AnalyticsDashboard({ userData }: AnalyticsDashboardProps) {
                       <stop offset="95%" stopColor="#2E7D32" stopOpacity={0} />
                     </linearGradient>
                   </defs>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#334155" opacity={0.1} />
                   <XAxis dataKey="day" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#94a3b8' }} />
                   <YAxis hide />
-                  <Tooltip />
+                  <Tooltip 
+                    contentStyle={{ backgroundColor: '#1e293b', border: 'none', borderRadius: '8px', color: '#fff' }}
+                    itemStyle={{ color: '#fff' }}
+                  />
                   <Area type="monotone" dataKey="healthy" stroke="#2E7D32" strokeWidth={3} fillOpacity={1} fill="url(#colorResolve)" name="Completed" />
                 </AreaChart>
               ) : (
                 <BarChart data={weeklyData}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                  <XAxis dataKey="day" axisLine={false} tickLine={false} />
-                  <YAxis axisLine={false} tickLine={false} />
-                  <Tooltip cursor={{ fill: '#f8fafc' }} />
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#334155" opacity={0.1} />
+                  <XAxis dataKey="day" axisLine={false} tickLine={false} tick={{ fill: '#94a3b8' }} />
+                  <YAxis axisLine={false} tickLine={false} tick={{ fill: '#94a3b8' }} />
+                  <Tooltip 
+                    cursor={{ fill: '#334155', opacity: 0.1 }} 
+                    contentStyle={{ backgroundColor: '#1e293b', border: 'none', borderRadius: '8px', color: '#fff' }}
+                    itemStyle={{ color: '#fff' }}
+                  />
                   <Legend iconType="circle" />
                   <Bar dataKey="diseases" fill="#EF4444" radius={[4, 4, 0, 0]} name="Diseased" />
                   <Bar dataKey="healthy" fill="#10B981" radius={[4, 4, 0, 0]} name="Healthy" />
@@ -190,7 +197,7 @@ export function AnalyticsDashboard({ userData }: AnalyticsDashboardProps) {
         {isOfficer ? (
           <Card className="p-6 flex flex-col">
             <div className="flex items-center justify-between mb-6">
-              <h3 className="font-semibold text-gray-900 flex items-center gap-2">
+              <h3 className="font-semibold text-gray-900 dark:text-white flex items-center gap-2">
                 <Bell size={18} className="text-[#2E7D32]" />
                 Urgent Cases
               </h3>
@@ -198,15 +205,15 @@ export function AnalyticsDashboard({ userData }: AnalyticsDashboardProps) {
             <div className="space-y-3 flex-1">
               {urgentCases.length > 0 ? (
                 urgentCases.map((item, i) => (
-                  <div key={i} className="p-3 rounded-xl border border-gray-100 bg-gray-50/50 hover:bg-white hover:shadow-sm transition-all cursor-pointer">
+                  <div key={i} className="p-3 rounded-xl border border-gray-100 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-900/50 hover:bg-white dark:hover:bg-gray-800 hover:shadow-sm transition-all cursor-pointer">
                     <div className="flex justify-between items-center mb-1">
-                      <p className="text-[10px] font-bold text-gray-400">{item.id}</p>
-                      <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${item.risk === 'High' ? 'bg-red-50 text-red-600' : 'bg-green-50 text-green-600'}`}>
+                      <p className="text-[10px] font-bold text-gray-400 dark:text-gray-500">{item.id}</p>
+                      <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${item.risk === 'High' ? 'bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400' : 'bg-green-50 dark:bg-green-900/30 text-green-600 dark:text-green-400'}`}>
                         {item.risk} RISK
                       </span>
                     </div>
-                    <p className="font-bold text-gray-900 text-sm">{item.farmer}</p>
-                    <p className="text-[10px] text-gray-500 mt-1">Escalated {item.time}</p>
+                    <p className="font-bold text-gray-900 dark:text-white text-sm">{item.farmer}</p>
+                    <p className="text-[10px] text-gray-500 dark:text-gray-400 mt-1">Escalated {item.time}</p>
                   </div>
                 ))
               ) : (
@@ -219,7 +226,7 @@ export function AnalyticsDashboard({ userData }: AnalyticsDashboardProps) {
           </Card>
         ) : isAdmin ? (
           <Card className="p-6">
-            <h3 className="font-semibold text-gray-900 mb-6">User Distribution</h3>
+            <h3 className="font-semibold text-gray-900 dark:text-white mb-6">User Distribution</h3>
             <div className="space-y-4">
               {[
                 { label: 'Farmers', val: '85%', color: 'bg-[#2E7D32]' },
@@ -228,10 +235,10 @@ export function AnalyticsDashboard({ userData }: AnalyticsDashboardProps) {
               ].map((group, i) => (
                 <div key={i} className="space-y-1">
                   <div className="flex justify-between text-xs font-medium">
-                    <span className="text-gray-600">{group.label}</span>
-                    <span className="text-gray-900">{group.val}</span>
+                    <span className="text-gray-600 dark:text-gray-400">{group.label}</span>
+                    <span className="text-gray-900 dark:text-gray-200">{group.val}</span>
                   </div>
-                  <div className="w-full h-2 bg-gray-100 rounded-full overflow-hidden">
+                  <div className="w-full h-2 bg-gray-100 dark:bg-gray-700 rounded-full overflow-hidden">
                     <div className={`h-full ${group.color}`} style={{ width: group.val }}></div>
                   </div>
                 </div>
@@ -240,8 +247,8 @@ export function AnalyticsDashboard({ userData }: AnalyticsDashboardProps) {
           </Card>
         ) : (
           <Card className="p-6">
-            <h3 className="font-semibold text-gray-900 mb-1">Disease Distribution</h3>
-            <p className="text-sm text-gray-500 mb-4">රෝග ව්‍යාප්තිය</p>
+            <h3 className="font-semibold text-gray-900 dark:text-white mb-1">Disease Distribution</h3>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">රෝග ව්‍යාප්තිය</p>
             <ResponsiveContainer width="100%" height={250}>
               <PieChart>
                 <Pie data={diseaseDistribution} cx="50%" cy="50%" innerRadius={60} outerRadius={80} paddingAngle={5} dataKey="value">

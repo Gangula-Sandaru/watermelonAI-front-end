@@ -18,7 +18,7 @@ export function Sidebar({ activeSection, setActiveSection, onLogout, userData }:
     { id: 'satellite', icon: Satellite, label: 'Satellite View', labelSi: 'චන්ද්‍රිකා දර්ශනය', roles: ['farmer', 'researcher'] },
     { id: 'diagnosis', icon: Brain, label: 'AI Diagnosis', labelSi: 'AI රෝග විනිශ්චය', roles: ['farmer'] },
     { id: 'expert-review', icon: ShieldAlert, label: 'Expert Review', labelSi: 'විශේෂඥ සමාලෝචනය', roles: ['officer'] },
-    { id: 'ai-training', icon: Database, label: 'AI Feedback Loop', labelSi: 'AI ප්‍රතිපෝෂණ', roles: ['officer', 'researcher', 'admin'] },
+    { id: 'ai-training', icon: Database, label: 'AI Feedback Loop', labelSi: 'AI ප්‍රතිපෝෂණ', roles: ['researcher', 'admin'] },
     { id: 'escalate', icon: ShieldAlert, label: 'Escalate', labelSi: 'නිලධාරියාට යොමු කරන්න', roles: ['farmer'] },
     { id: 'data', icon: FileText, label: 'Data Management', labelSi: 'දත්ත කළමනාකරණය', roles: ['farmer', 'officer', 'researcher'] },
     { id: 'settings', icon: Settings, label: 'Settings', labelSi: 'සැකසීම්', roles: ['farmer', 'officer', 'researcher', 'admin'] },
@@ -27,16 +27,16 @@ export function Sidebar({ activeSection, setActiveSection, onLogout, userData }:
   const filteredItems = menuItems.filter(item => !item.roles || item.roles.includes(effectiveRole));
 
   return (
-    <aside className="w-64 bg-white border-r border-gray-200 h-screen flex flex-col">
+    <aside className="w-64 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 h-screen flex flex-col">
       {/* Logo & Title */}
-      <div className="p-6 border-b border-gray-200">
+      <div className="p-6 border-b border-gray-200 dark:border-gray-700">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-lg bg-[#2E7D32] flex items-center justify-center">
             <MapPin className="w-6 h-6 text-white" />
           </div>
           <div>
             <h1 className="font-bold text-[#2E7D32]">WatermelonAI</h1>
-            <p className="text-xs text-gray-500">Disease Detection</p>
+            <p className="text-xs text-gray-500 dark:text-gray-400">Disease Detection</p>
           </div>
         </div>
       </div>
@@ -53,7 +53,7 @@ export function Sidebar({ activeSection, setActiveSection, onLogout, userData }:
                   onClick={() => setActiveSection(item.id)}
                   className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all ${isActive
                       ? 'bg-[#2E7D32] text-white shadow-md'
-                      : 'text-gray-700 hover:bg-gray-100'
+                      : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
                     }`}
                 >
                   <Icon className="w-5 h-5" />
@@ -69,18 +69,18 @@ export function Sidebar({ activeSection, setActiveSection, onLogout, userData }:
       </nav>
 
       {/* Footer */}
-      <div className="p-4 border-t border-gray-200">
+      <div className="p-4 border-t border-gray-200 dark:border-gray-700">
         <div className="flex items-center gap-3 px-4 py-3 group">
-          <div className="w-10 h-10 rounded-full bg-gray-200 flex flex-shrink-0 items-center justify-center overflow-hidden">
-            <span className="text-sm font-semibold text-gray-700 uppercase">
+          <div className="w-10 h-10 rounded-full bg-gray-200 dark:bg-gray-700 flex flex-shrink-0 items-center justify-center overflow-hidden">
+            <span className="text-sm font-semibold text-gray-700 dark:text-gray-300 uppercase">
               {userData?.username ? userData.username.substring(0, 2) : (userData?.email ? userData.email.substring(0, 2) : 'US')}
             </span>
           </div>
           <div className="flex-1 overflow-hidden">
-            <p className="text-sm font-medium text-gray-900 truncate" title={userData?.username || userData?.email}>
+            <p className="text-sm font-medium text-gray-900 dark:text-white truncate" title={userData?.username || userData?.email}>
               {userData?.username || userData?.email || 'Loading...'}
             </p>
-            <p className="text-xs text-gray-500 truncate">WatermelonAI</p>
+            <p className="text-xs text-gray-500 dark:text-gray-400 truncate">WatermelonAI</p>
           </div>
           <button
             onClick={onLogout}

@@ -243,8 +243,8 @@ export function SatelliteMonitoringView() {
     <Card className={`p-6 bg-white transition-all duration-300 ${isFullscreen ? 'fixed inset-0 z-[9999] rounded-none m-0 h-screen overflow-hidden flex flex-col' : ''}`}>
       <div className="flex flex-col md:flex-row items-start md:items-center justify-between mb-4 gap-4 flex-shrink-0">
         <div>
-          <h3 className="font-semibold text-gray-900">Satellite Crop Monitoring</h3>
-          <p className="text-sm text-gray-500">චන්ද්‍රිකා භෝග අධීක්ෂණය</p>
+          <h3 className="font-semibold text-gray-900 dark:text-white">Satellite Crop Monitoring</h3>
+          <p className="text-sm text-gray-500 dark:text-gray-400">චන්ද්‍රිකා භෝග අධීක්ෂණය</p>
         </div>
         
         {/* Search Bar */}
@@ -255,9 +255,9 @@ export function SatelliteMonitoringView() {
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
-            className="w-full border rounded-l-md px-3 py-1.5 text-sm outline-none focus:border-[#2ecc71]"
+            className="w-full border dark:border-gray-700 rounded-l-md px-3 py-1.5 text-sm outline-none focus:border-[#2ecc71] bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
           />
-          <Button onClick={handleSearch} className="rounded-l-none bg-gray-800 hover:bg-gray-700 text-white">
+          <Button onClick={handleSearch} className="rounded-l-none bg-gray-800 dark:bg-gray-700 hover:bg-gray-700 dark:hover:bg-gray-600 text-white">
             <Search className="w-4 h-4" />
           </Button>
         </div>
@@ -275,13 +275,13 @@ export function SatelliteMonitoringView() {
                 placeholder="Farm Name" 
                 value={newFarmName}
                 onChange={(e) => setNewFarmName(e.target.value)}
-                className="border rounded px-3 py-1.5 text-sm outline-none focus:border-[#2ecc71]"
+                className="border dark:border-gray-700 rounded px-3 py-1.5 text-sm outline-none focus:border-[#2ecc71] bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
               />
               <Button onClick={handleSaveFarm} className="bg-[#2ecc71] hover:bg-[#27ae60] text-white">
                 <Save className="w-4 h-4 mr-2" />
                 Save Area
               </Button>
-              <Button variant="outline" onClick={cancelCreation}>
+              <Button variant="outline" onClick={cancelCreation} className="dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800">
                 <X className="w-4 h-4 mr-2" />
                 Cancel
               </Button>
@@ -293,19 +293,19 @@ export function SatelliteMonitoringView() {
       <div className={`flex flex-col lg:flex-row gap-6 ${isFullscreen ? 'flex-grow min-h-0' : ''}`}>
         
         {/* Farm List Panel */}
-        <div className={`flex flex-col bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm flex-shrink-0 ${isFullscreen ? 'w-80 h-full' : 'w-full lg:w-72 h-[500px]'}`}>
-          <div className="p-4 bg-gray-50 border-b border-gray-200">
-            <h4 className="font-semibold text-gray-800 flex items-center gap-2">
+        <div className={`flex flex-col bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden shadow-sm flex-shrink-0 ${isFullscreen ? 'w-80 h-full' : 'w-full lg:w-72 h-[500px]'}`}>
+          <div className="p-4 bg-gray-50 dark:bg-gray-900/50 border-b border-gray-200 dark:border-gray-700">
+            <h4 className="font-semibold text-gray-800 dark:text-gray-200 flex items-center gap-2">
               <Layers className="w-4 h-4 text-[#2ecc71]" /> My Farms
             </h4>
           </div>
-          <div className="overflow-y-auto flex-1 p-3 space-y-3 bg-gray-50/50">
+          <div className="overflow-y-auto flex-1 p-3 space-y-3 bg-gray-50/50 dark:bg-gray-900/30">
             {farms.length === 0 && !loading && (
               <p className="text-sm text-gray-500 p-4 text-center">No farms saved yet. Click "Draw Farm Boundary" to add one.</p>
             )}
-            {loading && <p className="text-sm text-gray-500 p-4 text-center">Loading farms...</p>}
+            {loading && <p className="text-sm text-gray-500 dark:text-gray-400 p-4 text-center">Loading farms...</p>}
             {farms.map(farm => (
-              <div key={farm.id} className="p-3 border border-gray-200 bg-white rounded-lg hover:shadow-md transition-all group">
+              <div key={farm.id} className="p-3 border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 rounded-lg hover:shadow-md transition-all group">
                 <div className="flex justify-between items-start mb-3">
                   {editingFarmId === farm.id ? (
                     <div className="flex items-center gap-1 w-full mr-2">
@@ -313,7 +313,7 @@ export function SatelliteMonitoringView() {
                         autoFocus
                         value={editFarmName} 
                         onChange={(e) => setEditFarmName(e.target.value)}
-                        className="text-sm font-semibold border-b border-green-500 outline-none w-full px-1 py-0.5"
+                        className="text-sm font-semibold border-b border-green-500 outline-none w-full px-1 py-0.5 bg-transparent text-gray-900 dark:text-white"
                       />
                       <button onClick={() => handleEditFarmSave(farm.id)} className="text-green-600 hover:text-green-800 p-1 bg-green-50 rounded">
                         <Check className="w-3.5 h-3.5" />
@@ -324,10 +324,10 @@ export function SatelliteMonitoringView() {
                     </div>
                   ) : (
                     <>
-                      <h5 className="font-semibold text-sm text-gray-900 truncate pr-2 cursor-pointer hover:text-[#2ecc71]" onClick={() => handleNavigateToFarm(farm)}>
+                      <h5 className="font-semibold text-sm text-gray-900 dark:text-white truncate pr-2 cursor-pointer hover:text-[#2ecc71]" onClick={() => handleNavigateToFarm(farm)}>
                         {farm.name}
                       </h5>
-                      <div className="flex gap-2 text-gray-400">
+                      <div className="flex gap-2 text-gray-400 dark:text-gray-500">
                         <button onClick={(e) => { e.stopPropagation(); handleRescan(farm.id); }} disabled={scanningFarmId !== null} className={`${scanningFarmId === farm.id ? 'text-green-500' : 'hover:text-green-500'} p-1 transition-colors`} title="Request New Scan">
                           {scanningFarmId === farm.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Satellite className="w-3.5 h-3.5" />}
                         </button>
@@ -344,7 +344,7 @@ export function SatelliteMonitoringView() {
                 <Button 
                   variant="ghost" 
                   size="sm" 
-                  className="w-full text-xs text-[#2E7D32] bg-green-50/80 hover:bg-green-100 hover:text-green-800 border border-green-100"
+                  className="w-full text-xs text-[#2E7D32] dark:text-green-400 bg-green-50/80 dark:bg-green-900/20 hover:bg-green-100 dark:hover:bg-green-900/40 hover:text-green-800 dark:hover:text-green-300 border border-green-100 dark:border-green-800/50"
                   onClick={() => handleNavigateToFarm(farm)}
                 >
                   <Navigation className="w-3.5 h-3.5 mr-1.5" /> Navigate to Map
@@ -360,14 +360,14 @@ export function SatelliteMonitoringView() {
           {/* Fullscreen Toggle */}
           <button 
             onClick={() => setIsFullscreen(!isFullscreen)}
-            className="absolute top-4 right-4 z-[1000] p-2 bg-white/95 backdrop-blur rounded-lg shadow-md hover:bg-gray-50 border border-gray-200 text-gray-700 transition-all hover:scale-105"
+            className="absolute top-4 right-4 z-[1000] p-2 bg-white/95 dark:bg-gray-800/95 backdrop-blur rounded-lg shadow-md hover:bg-gray-50 dark:hover:bg-gray-700 border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-200 transition-all hover:scale-105"
             title={isFullscreen ? "Exit Fullscreen" : "Maximize Map"}
           >
             {isFullscreen ? <Minimize className="w-5 h-5" /> : <Maximize className="w-5 h-5" />}
           </button>
 
           {isCreating && (
-            <div className="absolute top-4 left-1/2 -translate-x-1/2 z-[1000] p-3 bg-blue-50/95 backdrop-blur-sm border border-blue-200 rounded-lg shadow-lg text-blue-800 text-sm flex items-center">
+            <div className="absolute top-4 left-1/2 -translate-x-1/2 z-[1000] p-3 bg-blue-50/95 dark:bg-blue-900/95 backdrop-blur-sm border border-blue-200 dark:border-blue-800 rounded-lg shadow-lg text-blue-800 dark:text-blue-200 text-sm flex items-center">
               <MapPin className="w-4 h-4 mr-2 animate-bounce" />
               <span className="font-medium">Click on the map to draw your farm's boundary. Need at least 3 points.</span>
             </div>
@@ -527,12 +527,12 @@ export function SatelliteMonitoringView() {
           </MapContainer>
 
           {/* Legend Overlay */}
-          <div className="absolute bottom-6 left-6 bg-white/95 backdrop-blur-sm rounded-lg shadow-lg p-3 z-[1000] border border-gray-100">
-            <p className="text-xs font-semibold mb-2 text-gray-800">Vegetation Health Index (NDVI)</p>
+          <div className="absolute bottom-6 left-6 bg-white/95 dark:bg-gray-800/95 backdrop-blur-sm rounded-lg shadow-lg p-3 z-[1000] border border-gray-100 dark:border-gray-700">
+            <p className="text-xs font-semibold mb-2 text-gray-800 dark:text-gray-200">Vegetation Health Index (NDVI)</p>
             <div className="flex items-center gap-2">
               <div className="w-32 h-2.5 rounded-full bg-gradient-to-r from-[#ff4b6b] via-[#f59e0b] to-[#2ecc71]"></div>
             </div>
-            <div className="flex justify-between w-32 text-[10px] mt-1 text-gray-600 font-medium">
+            <div className="flex justify-between w-32 text-[10px] mt-1 text-gray-600 dark:text-gray-400 font-medium">
               <span>Stressed</span>
               <span>Healthy</span>
             </div>
@@ -542,19 +542,19 @@ export function SatelliteMonitoringView() {
       </div>
 
       {!isFullscreen && (
-        <div className="mt-8 pt-6 border-t border-gray-100">
+        <div className="mt-8 pt-6 border-t border-gray-100 dark:border-gray-700">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-bold text-gray-800 flex items-center gap-2">
+            <h3 className="text-lg font-bold text-gray-800 dark:text-white flex items-center gap-2">
               <Layers className="w-5 h-5 text-blue-500" />
               Analytics & Scan History
             </h3>
-            <p className="text-xs text-gray-500">Track patch recovery over time</p>
+            <p className="text-xs text-gray-500 dark:text-gray-400">Track patch recovery over time</p>
           </div>
           
-          <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
+          <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl shadow-sm overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full text-sm text-left">
-                <thead className="bg-gray-50 border-b border-gray-200 text-gray-600">
+                <thead className="bg-gray-50 dark:bg-gray-900/50 border-b border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400">
                   <tr>
                     <th className="px-4 py-3 font-semibold">Farm Name</th>
                     <th className="px-4 py-3 font-semibold">Overall Status</th>
@@ -568,7 +568,7 @@ export function SatelliteMonitoringView() {
                 <tbody className="divide-y divide-gray-100">
                   {farms.length === 0 && !loading && (
                     <tr>
-                      <td colSpan={7} className="px-4 py-8 text-center text-gray-500">
+                      <td colSpan={7} className="px-4 py-8 text-center text-gray-500 dark:text-gray-400">
                         No data available. Draw a farm boundary to begin monitoring.
                       </td>
                     </tr>
@@ -580,27 +580,27 @@ export function SatelliteMonitoringView() {
                     const patches = farm.patches || [];
                     
                     return (
-                      <tr key={`table-${farm.id}`} className="hover:bg-gray-50 transition-colors">
-                        <td className="px-4 py-4 font-medium text-gray-900">
+                      <tr key={`table-${farm.id}`} className="hover:bg-gray-50 dark:hover:bg-gray-900/50 transition-colors">
+                        <td className="px-4 py-4 font-medium text-gray-900 dark:text-white">
                           {farm.name}
                         </td>
                         <td className="px-4 py-4">
                           {latestScan ? (
-                            <span className={`px-2.5 py-1 rounded-full text-xs font-semibold ${statusColor}`}>
+                            <span className={`px-2.5 py-1 rounded-full text-xs font-semibold ${isStressed ? 'text-red-600 bg-red-50 dark:bg-red-900/20' : (latestScan?.status === 'moderate' ? 'text-orange-600 bg-orange-50 dark:bg-orange-900/20' : 'text-green-600 bg-green-50 dark:bg-green-900/20')}`}>
                               {latestScan.status.toUpperCase()}
                             </span>
-                          ) : <span className="text-gray-400">-</span>}
+                          ) : <span className="text-gray-400 dark:text-gray-500">-</span>}
                         </td>
-                        <td className="px-4 py-4 font-mono font-medium text-gray-700">
+                        <td className="px-4 py-4 font-mono font-medium text-gray-700 dark:text-gray-300">
                           {latestScan ? latestScan.ndvi_value.toFixed(2) : '-'}
                         </td>
-                        <td className="px-4 py-4 text-gray-600">
+                        <td className="px-4 py-4 text-gray-600 dark:text-gray-400">
                           {patches.length > 0 ? (
-                            <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-red-100 text-red-700 font-bold text-xs">
+                            <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 font-bold text-xs">
                               {patches.length}
                             </span>
                           ) : (
-                            <span className="text-gray-400">None</span>
+                            <span className="text-gray-400 dark:text-gray-500">None</span>
                           )}
                         </td>
                         <td className="px-4 py-4">
@@ -632,7 +632,7 @@ export function SatelliteMonitoringView() {
                             <span className="text-gray-400 text-xs">No patches tracked</span>
                           )}
                         </td>
-                        <td className="px-4 py-4 text-xs text-gray-500">
+                        <td className="px-4 py-4 text-xs text-gray-500 dark:text-gray-400">
                           {latestScan ? new Date(latestScan.scan_date).toLocaleDateString() : 'Never'}
                         </td>
                         <td className="px-4 py-4">
@@ -643,12 +643,12 @@ export function SatelliteMonitoringView() {
                                 Uplink Active...
                               </div>
                             )}
-                            <Button 
+                             <Button 
                               variant="outline" 
                               size="sm" 
                               disabled={scanningFarmId !== null}
                               onClick={() => handleRescan(farm.id)}
-                              className="text-blue-600 border-blue-200 hover:bg-blue-50"
+                              className="text-blue-600 dark:text-blue-400 border-blue-200 dark:border-blue-900 hover:bg-blue-50 dark:hover:bg-blue-900/30"
                             >
                               {scanningFarmId === farm.id ? <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" /> : <Satellite className="w-3.5 h-3.5 mr-1.5" />}
                               {scanningFarmId === farm.id ? 'Scanning' : 'Re-Scan'}
@@ -666,7 +666,7 @@ export function SatelliteMonitoringView() {
       )}
 
       {!isFullscreen && (
-        <div className="mt-4 text-xs text-gray-500 flex justify-between items-center flex-shrink-0">
+        <div className="mt-4 text-xs text-gray-500 dark:text-gray-400 flex justify-between items-center flex-shrink-0">
           <p>Map Data: Google Satellite • Geocoding: OSM • API Sync: WatermelonAI</p>
         </div>
       )}

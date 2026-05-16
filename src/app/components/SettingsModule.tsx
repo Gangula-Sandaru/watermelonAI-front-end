@@ -50,6 +50,7 @@ export const SettingsModule = () => {
   const [systemUpdates, setSystemUpdates] = useState(false);
   const [anonymousSharing, setAnonymousSharing] = useState(true);
   const [language, setLanguage] = useState('English (US)');
+  const [theme, setTheme] = useState<'light' | 'dark'>('light');
 
   const API_BASE = "http://127.0.0.1:8000/api/settings/";
 
@@ -75,6 +76,14 @@ export const SettingsModule = () => {
           
           const langMap: Record<string, string> = { 'en': 'English (US)', 'si': 'සිංහල (Sinhala)', 'ta': 'தமிழ் (Tamil)' };
           setLanguage(langMap[data.language] || 'English (US)');
+          setTheme(data.theme_preference || 'light');
+          
+          // Apply theme immediately
+          if (data.theme_preference === 'dark') {
+            document.documentElement.classList.add('dark');
+          } else {
+            document.documentElement.classList.remove('dark');
+          }
         }
       } catch (err) {
         console.error("Failed to fetch settings", err);
@@ -99,7 +108,8 @@ export const SettingsModule = () => {
         weather_warnings: weatherWarnings,
         system_updates: systemUpdates,
         retention_policy: dataRetention,
-        anonymous_data_sharing: anonymousSharing
+        anonymous_data_sharing: anonymousSharing,
+        theme_preference: theme
       };
 
       const response = await fetch(API_BASE, {
@@ -180,8 +190,8 @@ export const SettingsModule = () => {
       <Card className="p-6">
         <div className="flex items-center justify-between mb-8">
           <div>
-            <h3 className="font-semibold text-gray-900">System Settings</h3>
-            <p className="text-sm text-gray-500">පද්ධති සැකසීම්</p>
+            <h3 className="font-semibold text-gray-900 dark:text-white">System Settings</h3>
+            <p className="text-sm text-gray-500 dark:text-gray-400">පද්ධති සැකසීම්</p>
           </div>
           <Settings className="w-8 h-8 text-[#2E7D32]" />
         </div>
@@ -191,7 +201,7 @@ export const SettingsModule = () => {
           <div className="space-y-8">
             {/* Language & Region */}
             <div className="space-y-4">
-              <h4 className="text-sm font-bold text-gray-900 flex items-center gap-2">
+              <h4 className="text-sm font-bold text-gray-900 dark:text-white flex items-center gap-2">
                 <Globe size={18} className="text-[#2E7D32]" /> Language & Region
               </h4>
               <div className="grid grid-cols-1 gap-4">
@@ -200,12 +210,45 @@ export const SettingsModule = () => {
                   <select 
                     value={language}
                     onChange={(e) => setLanguage(e.target.value)}
-                    className="w-full px-4 py-2 border border-gray-200 rounded-lg bg-white text-sm"
+                    className="w-full px-4 py-2 border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-sm dark:text-gray-200"
                   >
                     <option>English (US)</option>
                     <option>සිංහල (Sinhala)</option>
                     <option>தமிழ் (Tamil)</option>
                   </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Display Theme</label>
+                  <div className="flex gap-3">
+                    <button
+                      onClick={() => {
+                        setTheme('light');
+                        document.documentElement.classList.remove('dark');
+                      }}
+                      className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-lg border-2 transition-all ${
+                        theme === 'light'
+                          ? 'border-[#2E7D32] bg-green-50 dark:bg-[#2E7D32]/10 text-[#2E7D32]'
+                          : 'border-gray-100 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-500 dark:text-gray-400 hover:border-gray-200 dark:hover:border-gray-600'
+                      }`}
+                    >
+                      <div className="w-4 h-4 rounded-full bg-white border-2 border-gray-200 shadow-sm"></div>
+                      <span className="text-xs font-bold">Light Mode</span>
+                    </button>
+                    <button
+                      onClick={() => {
+                        setTheme('dark');
+                        document.documentElement.classList.add('dark');
+                      }}
+                      className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-lg border-2 transition-all ${
+                        theme === 'dark'
+                          ? 'border-[#2E7D32] bg-green-50 dark:bg-[#2E7D32]/10 text-[#2E7D32]'
+                          : 'border-gray-100 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-500 dark:text-gray-400 hover:border-gray-200 dark:hover:border-gray-600'
+                      }`}
+                    >
+                      <div className="w-4 h-4 rounded-full bg-gray-900 shadow-sm"></div>
+                      <span className="text-xs font-bold">Dark Mode</span>
+                    </button>
+                  </div>
                 </div>
                 <div>
                   <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Default Location (GPS)</label>
@@ -216,7 +259,7 @@ export const SettingsModule = () => {
                         type="text" 
                         value={`${location[0].toFixed(4)}° N, ${location[1].toFixed(4)}° E`}
                         readOnly
-                        className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-lg text-sm bg-gray-50 cursor-not-allowed"
+                        className="w-full pl-10 pr-4 py-2 border border-gray-200 dark:border-gray-700 rounded-lg text-sm bg-gray-50 dark:bg-gray-800/50 text-gray-600 dark:text-gray-300 cursor-not-allowed"
                       />
                     </div>
                     <Button 
@@ -241,7 +284,7 @@ export const SettingsModule = () => {
                           value={searchQuery}
                           onChange={(e) => setSearchQuery(e.target.value)}
                           onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
-                          className="flex-1 px-3 py-1.5 border border-gray-200 rounded-lg text-sm outline-none focus:border-[#2E7D32]"
+                          className="flex-1 px-3 py-1.5 border border-gray-200 dark:border-gray-700 rounded-lg text-sm outline-none focus:border-[#2E7D32] bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
                         />
                         <Button onClick={handleSearch} size="sm" className="bg-gray-800 hover:bg-gray-700">
                           <Search size={14} />
@@ -251,7 +294,7 @@ export const SettingsModule = () => {
                       <div className="flex gap-2 ml-4">
                         <button 
                           onClick={() => setIsMapMaximized(!isMapMaximized)}
-                          className="p-2 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors text-gray-600"
+                          className="p-2 bg-gray-100 dark:bg-gray-700 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors text-gray-600 dark:text-gray-300"
                           title={isMapMaximized ? "Minimize" : "Maximize"}
                         >
                           {isMapMaximized ? <Minimize size={18} /> : <Maximize size={18} />}
@@ -292,33 +335,33 @@ export const SettingsModule = () => {
 
             {/* Notifications */}
             <div className="space-y-4">
-              <h4 className="text-sm font-bold text-gray-900 flex items-center gap-2">
+              <h4 className="text-sm font-bold text-gray-900 dark:text-white flex items-center gap-2">
                 <Bell size={18} className="text-[#2E7D32]" /> Notifications
               </h4>
-              <div className="space-y-3 bg-gray-50 p-4 rounded-xl border border-gray-100">
+              <div className="space-y-3 bg-gray-50 dark:bg-gray-800/50 p-4 rounded-xl border border-gray-100 dark:border-gray-700">
                 <label className="flex items-center justify-between group cursor-pointer">
-                  <span className="text-sm text-gray-700 font-medium">Disease detection alerts</span>
+                  <span className="text-sm text-gray-700 dark:text-gray-300 font-medium">Disease detection alerts</span>
                   <input 
                     type="checkbox" 
-                    className="w-4 h-4 rounded border-gray-300 text-[#2E7D32] focus:ring-[#2E7D32]" 
+                    className="w-4 h-4 rounded border-gray-300 dark:border-gray-600 text-[#2E7D32] focus:ring-[#2E7D32] bg-white dark:bg-gray-800" 
                     checked={diseaseAlerts}
                     onChange={(e) => setDiseaseAlerts(e.target.checked)}
                   />
                 </label>
                 <label className="flex items-center justify-between group cursor-pointer">
-                  <span className="text-sm text-gray-700 font-medium">Weather risk warnings</span>
+                  <span className="text-sm text-gray-700 dark:text-gray-300 font-medium">Weather risk warnings</span>
                   <input 
                     type="checkbox" 
-                    className="w-4 h-4 rounded border-gray-300 text-[#2E7D32] focus:ring-[#2E7D32]" 
+                    className="w-4 h-4 rounded border-gray-300 dark:border-gray-600 text-[#2E7D32] focus:ring-[#2E7D32] bg-white dark:bg-gray-800" 
                     checked={weatherWarnings}
                     onChange={(e) => setWeatherWarnings(e.target.checked)}
                   />
                 </label>
                 <label className="flex items-center justify-between group cursor-pointer">
-                  <span className="text-sm text-gray-700 font-medium">System status updates</span>
+                  <span className="text-sm text-gray-700 dark:text-gray-300 font-medium">System status updates</span>
                   <input 
                     type="checkbox" 
-                    className="w-4 h-4 rounded border-gray-300 text-[#2E7D32] focus:ring-[#2E7D32]" 
+                    className="w-4 h-4 rounded border-gray-300 dark:border-gray-600 text-[#2E7D32] focus:ring-[#2E7D32] bg-white dark:bg-gray-800" 
                     checked={systemUpdates}
                     onChange={(e) => setSystemUpdates(e.target.checked)}
                   />
@@ -331,12 +374,12 @@ export const SettingsModule = () => {
           <div className="space-y-8">
             {/* Data Management */}
             <div className="space-y-4">
-              <h4 className="text-sm font-bold text-gray-900 flex items-center gap-2">
+              <h4 className="text-sm font-bold text-gray-900 dark:text-white flex items-center gap-2">
                 <Database size={18} className="text-[#2E7D32]" /> Data Management
               </h4>
               <div className="space-y-4">
                 <div>
-                  <label className="block text-xs font-bold text-gray-500 uppercase mb-2">History Retention Policy</label>
+                  <label className="block text-xs font-bold text-gray-500 dark:text-gray-400 uppercase mb-2">History Retention Policy</label>
                   <div className="grid grid-cols-2 gap-2">
                     {['30days', '6months', '1year', 'forever'].map((policy) => (
                       <button
@@ -344,8 +387,8 @@ export const SettingsModule = () => {
                         onClick={() => setDataRetention(policy)}
                         className={`px-3 py-2 rounded-lg border text-xs font-bold transition-all ${
                           dataRetention === policy
-                            ? 'border-[#2E7D32] bg-green-50 text-[#2E7D32]'
-                            : 'border-gray-200 bg-white text-gray-500 hover:border-gray-300'
+                            ? 'border-[#2E7D32] bg-green-50 dark:bg-[#2E7D32]/10 text-[#2E7D32]'
+                            : 'border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-500 dark:text-gray-400 hover:border-gray-300 dark:hover:border-gray-600'
                         }`}
                       >
                         {policy === 'forever' ? 'Keep Forever' : policy.replace('days', ' Days').replace('months', ' Months').replace('year', '1 Year')}
@@ -355,15 +398,15 @@ export const SettingsModule = () => {
                   <p className="text-[10px] text-gray-400 mt-2 font-medium">Older scans will be automatically archived to optimize system performance.</p>
                 </div>
                 
-                <div className="p-4 bg-amber-50 rounded-xl border border-amber-100 space-y-3">
+                <div className="p-4 bg-amber-50 dark:bg-amber-900/10 rounded-xl border border-amber-100 dark:border-amber-900/30 space-y-3">
                   <label className="flex items-center justify-between group cursor-pointer">
                     <div className="space-y-0.5">
-                      <span className="text-sm text-amber-900 font-bold">Anonymous Data Sharing</span>
-                      <p className="text-[10px] text-amber-700/70 leading-tight">Help improve our AI models by sharing anonymized disease data.</p>
+                      <span className="text-sm text-amber-900 dark:text-amber-500 font-bold">Anonymous Data Sharing</span>
+                      <p className="text-[10px] text-amber-700/70 dark:text-amber-600/70 leading-tight">Help improve our AI models by sharing anonymized disease data.</p>
                     </div>
                     <input 
                       type="checkbox" 
-                      className="w-4 h-4 rounded border-amber-300 text-amber-600 focus:ring-amber-500" 
+                      className="w-4 h-4 rounded border-amber-300 dark:border-amber-800 text-amber-600 focus:ring-amber-500 bg-white dark:bg-gray-900" 
                       checked={anonymousSharing}
                       onChange={(e) => setAnonymousSharing(e.target.checked)}
                     />
@@ -374,22 +417,22 @@ export const SettingsModule = () => {
 
             {/* Privacy & API */}
             <div className="space-y-4">
-              <h4 className="text-sm font-bold text-gray-900 flex items-center gap-2">
+              <h4 className="text-sm font-bold text-gray-900 dark:text-white flex items-center gap-2">
                 <Shield size={18} className="text-[#2E7D32]" /> Privacy & Security
               </h4>
               <div className="grid grid-cols-1 gap-3">
-                <Button variant="outline" className="justify-start gap-2 h-auto py-3 px-4 border-gray-200">
+                <Button variant="outline" className="justify-start gap-2 h-auto py-3 px-4 border-gray-200 dark:border-gray-700 dark:bg-gray-800 dark:hover:bg-gray-700">
                   <Lock size={14} className="text-gray-400" />
                   <div className="text-left">
-                    <p className="text-xs font-bold text-gray-900">Change Security Password</p>
-                    <p className="text-[10px] text-gray-500">Update your account credentials</p>
+                    <p className="text-xs font-bold text-gray-900 dark:text-gray-100">Change Security Password</p>
+                    <p className="text-[10px] text-gray-500 dark:text-gray-400">Update your account credentials</p>
                   </div>
                 </Button>
-                <Button variant="outline" className="justify-start gap-2 h-auto py-3 px-4 border-gray-200">
+                <Button variant="outline" className="justify-start gap-2 h-auto py-3 px-4 border-gray-200 dark:border-gray-700 dark:bg-gray-800 dark:hover:bg-gray-700">
                   <RefreshCw size={14} className="text-gray-400" />
                   <div className="text-left">
-                    <p className="text-xs font-bold text-gray-900">Manage API Tokens</p>
-                    <p className="text-[10px] text-gray-500">Integrate with research tools</p>
+                    <p className="text-xs font-bold text-gray-900 dark:text-gray-100">Manage API Tokens</p>
+                    <p className="text-[10px] text-gray-500 dark:text-gray-400">Integrate with research tools</p>
                   </div>
                 </Button>
               </div>
@@ -398,12 +441,12 @@ export const SettingsModule = () => {
         </div>
 
         {/* Danger Zone */}
-        <div className="mt-12 pt-8 border-t border-gray-100 flex flex-col md:flex-row items-center justify-between gap-6">
-          <div className="flex items-center gap-4 text-red-600">
+        <div className="mt-12 pt-8 border-t border-gray-100 dark:border-gray-700 flex flex-col md:flex-row items-center justify-between gap-6">
+          <div className="flex items-center gap-4 text-red-600 dark:text-red-500">
             <Trash2 size={24} className="opacity-80" />
             <div>
               <p className="text-sm font-black uppercase tracking-wider">Danger Zone</p>
-              <p className="text-xs text-gray-500 font-medium">Irreversible actions on your agricultural records</p>
+              <p className="text-xs text-gray-500 dark:text-gray-400 font-medium">Irreversible actions on your agricultural records</p>
             </div>
           </div>
           <div className="flex gap-4 w-full md:w-auto">

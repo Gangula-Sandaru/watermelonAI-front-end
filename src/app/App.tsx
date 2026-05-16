@@ -64,6 +64,13 @@ export default function App() {
             const data = await response.json();
             setUserData(data);
             
+            // Apply theme preference from profile
+            if (data.theme_preference === 'dark') {
+              document.documentElement.classList.add('dark');
+            } else {
+              document.documentElement.classList.remove('dark');
+            }
+
             // Auto-redirect if admin to AI Training
             const isAdminUser = data.role === 'admin' || data.role === 'superadmin' || data.is_superuser === true;
             if (isAdminUser && activeSection === 'dashboard') {
@@ -210,7 +217,7 @@ export default function App() {
   const isAdmin = role === 'admin' || role === 'superadmin' || userData?.is_superuser === true;
 
   return (
-    <div className="flex h-screen bg-gray-50 overflow-hidden">
+    <div className="flex h-screen bg-gray-50 dark:bg-gray-900 overflow-hidden text-gray-900 dark:text-gray-100">
       {/* Sidebar Navigation */}
       <Sidebar
         activeSection={activeSection}
@@ -222,18 +229,18 @@ export default function App() {
       {/* Main Content Area */}
       <main className="flex-1 overflow-y-auto">
         {/* Header */}
-        <header className="bg-white border-b border-gray-200 sticky top-0 z-10">
+        <header className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 sticky top-0 z-10">
           <div className="px-8 py-4">
             <div className="flex items-center justify-between">
               <div>
-                <h2 className="text-2xl font-bold text-gray-900">
+                <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
                   {activeSection === 'dashboard' && (userData?.role?.toLowerCase()?.includes('officer') ? 'Officer Dashboard' : isAdmin ? 'Admin Dashboard' : 'Analytics Dashboard')}
                   {activeSection === 'satellite' && 'Satellite Monitoring'}
                   {activeSection === 'diagnosis' && 'AI Disease Diagnosis'}
                   {activeSection === 'data' && 'Data Management'}
                   {activeSection === 'communications' && 'Communications Hub'}
                   {activeSection === 'expert-review' && 'Expert Review Queue'}
-                  {activeSection === 'ai-training' && 'AI Training Center'}
+                  {activeSection === 'ai-training' && !userData?.role?.toLowerCase()?.includes('officer') && 'AI Training Center'}
                   {activeSection === 'settings' && 'Settings'}
                 </h2>
                 <p className="text-sm text-gray-500">
@@ -243,13 +250,13 @@ export default function App() {
                   {activeSection === 'data' && 'දත්ත කළමනාකරණය'}
                   {activeSection === 'communications' && 'සන්නිවේදන කේන්ද්‍රය'}
                   {activeSection === 'expert-review' && 'විශේෂඥ සමාලෝචන පෝලිම'}
-                  {activeSection === 'ai-training' && 'AI පුහුණු මධ්‍යස්ථානය'}
+                  {activeSection === 'ai-training' && !userData?.role?.toLowerCase()?.includes('officer') && 'AI පුහුණු මධ්‍යස්ථානය'}
                   {activeSection === 'settings' && 'සැකසීම්'}
                 </p>
               </div>
               <div className="flex items-center gap-6">
                 <div className="text-right">
-                  <p className="text-sm font-bold text-gray-900 leading-none mb-1">
+                  <p className="text-sm font-bold text-gray-900 dark:text-white leading-none mb-1">
                     {userData ? (userData.username || userData.email) : 'Loading...'}
                   </p>
                   <p className="text-xs text-[#2E7D32] font-semibold uppercase tracking-wider">
@@ -262,14 +269,14 @@ export default function App() {
                   </p>
                 </div>
 
-                <div className="h-10 w-px bg-gray-200"></div>
+                <div className="h-10 w-px bg-gray-200 dark:bg-gray-700"></div>
 
                 <div className="flex items-center gap-3">
                   <div className="px-4 py-2 bg-green-100 text-green-800 rounded-lg flex items-center gap-2">
                     <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
                     <span className="text-sm font-semibold">System Online</span>
                   </div>
-                  <div className="text-sm text-gray-600 font-medium w-[180px] text-right">
+                  <div className="text-sm text-gray-600 dark:text-gray-400 font-medium w-[180px] text-right">
                     <LiveClock />
                   </div>
                 </div>
@@ -344,7 +351,7 @@ export default function App() {
             <OfficerEscalationTable setActiveSection={setActiveSection} />
           )}
 
-          {activeSection === 'ai-training' && (
+          {activeSection === 'ai-training' && !userData?.role?.toLowerCase()?.includes('officer') && (
             <AITrainingCenter />
           )}
 

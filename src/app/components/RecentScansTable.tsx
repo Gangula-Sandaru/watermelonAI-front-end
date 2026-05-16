@@ -76,8 +76,8 @@ export function RecentScansTable() {
     <Card className="p-6">
       <div className="flex items-center justify-between mb-4">
         <div>
-          <h3 className="font-semibold text-gray-900">Recent Scans & Diagnostics</h3>
-          <p className="text-sm text-gray-500">මෑත පරිලෝකන සහ විනිශ්චය</p>
+          <h3 className="font-semibold text-gray-900 dark:text-white">Recent Scans & Diagnostics</h3>
+          <p className="text-sm text-gray-500 dark:text-gray-400">මෑත පරිලෝකන සහ විනිශ්චය</p>
         </div>
         <FileText className="w-8 h-8 text-[#2E7D32]" />
       </div>
@@ -105,7 +105,7 @@ export function RecentScansTable() {
               </TableRow>
             ) : scans.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={7} className="text-center py-10 text-gray-500">
+                <TableCell colSpan={7} className="text-center py-10 text-gray-500 dark:text-gray-400">
                   No recent scans found. Create a new diagnosis to see records here.
                 </TableCell>
               </TableRow>
@@ -122,22 +122,22 @@ export function RecentScansTable() {
                   <TableCell className="font-medium">SC-{scan.id.toString().padStart(3, '0')}</TableCell>
                   <TableCell>
                     <div className="flex items-center gap-2">
-                      <Calendar className="w-4 h-4 text-gray-400" />
+                      <Calendar className="w-4 h-4 text-gray-400 dark:text-gray-500" />
                       <div>
-                        <p className="text-sm">{dateObj.toLocaleDateString()}</p>
-                        <p className="text-xs text-gray-500">{dateObj.toLocaleTimeString()}</p>
+                        <p className="text-sm dark:text-gray-200">{dateObj.toLocaleDateString()}</p>
+                        <p className="text-xs text-gray-500 dark:text-gray-400">{dateObj.toLocaleTimeString()}</p>
                       </div>
                     </div>
                   </TableCell>
                   <TableCell>
                     <div className="flex items-center gap-2">
                       <MapPin className="w-4 h-4 text-[#2E7D32]" />
-                      <span>{scan.location_name || 'Unknown Field'}</span>
+                      <span className="dark:text-gray-200">{scan.location_name || 'Unknown Field'}</span>
                     </div>
                   </TableCell>
                   <TableCell>
                     <div>
-                      <p className="font-medium truncate max-w-[200px]" title={diseaseName}>{diseaseName}</p>
+                      <p className="font-medium truncate max-w-[200px] dark:text-gray-100" title={diseaseName}>{diseaseName}</p>
                     </div>
                   </TableCell>
                   <TableCell className="text-center">
@@ -170,17 +170,17 @@ export function RecentScansTable() {
         {scans.length > itemsPerPage && (
           <div className="flex items-center gap-2">
             <button
-              className="px-3 py-1 border rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed font-medium text-gray-700"
+              className="px-3 py-1 border dark:border-gray-700 rounded-md hover:bg-gray-50 dark:hover:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed font-medium text-gray-700 dark:text-gray-300"
               onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
               disabled={currentPage === 1}
             >
               Previous
             </button>
-            <span className="font-semibold text-gray-900 mx-2">
+            <span className="font-semibold text-gray-900 dark:text-gray-100 mx-2">
               Page {currentPage} of {Math.ceil(scans.length / itemsPerPage)}
             </span>
             <button
-              className="px-3 py-1 border rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed font-medium text-gray-700"
+              className="px-3 py-1 border dark:border-gray-700 rounded-md hover:bg-gray-50 dark:hover:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed font-medium text-gray-700 dark:text-gray-300"
               onClick={() => setCurrentPage(p => Math.min(Math.ceil(scans.length / itemsPerPage), p + 1))}
               disabled={currentPage >= Math.ceil(scans.length / itemsPerPage)}
             >
