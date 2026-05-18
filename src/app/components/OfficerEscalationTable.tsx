@@ -125,12 +125,12 @@ export function OfficerEscalationTable({ setActiveSection }: { setActiveSection?
 
   return (
     <>
-      <Card className="overflow-hidden border-none shadow-lg bg-white rounded-2xl">
-        <div className="p-6 border-b border-gray-100 bg-gray-50/50">
+      <Card className="overflow-hidden border-none shadow-lg bg-card rounded-2xl">
+        <div className="p-6 border-b border-gray-100 dark:border-gray-700 bg-muted/30">
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div>
-              <h3 className="text-lg font-bold text-gray-900">Expert Review Queue</h3>
-              <p className="text-sm text-gray-500">Manage and respond to farmer escalations</p>
+              <h3 className="text-lg font-bold text-gray-900 dark:text-white">Expert Review Queue</h3>
+              <p className="text-sm text-gray-500 dark:text-gray-400">Manage and respond to farmer escalations</p>
             </div>
             
             <div className="flex items-center gap-3">
@@ -139,7 +139,7 @@ export function OfficerEscalationTable({ setActiveSection }: { setActiveSection?
                 <input 
                   type="text" 
                   placeholder="Search requests..." 
-                  className="pl-10 pr-4 py-2 bg-white border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-[#2E7D32]/20 focus:border-[#2E7D32] outline-none transition-all w-64"
+                  className="pl-10 pr-4 py-2 bg-background border border-gray-200 dark:border-gray-700 rounded-xl text-sm focus:ring-2 focus:ring-[#2E7D32]/20 focus:border-[#2E7D32] outline-none transition-all w-64 text-gray-900 dark:text-gray-100"
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                 />
@@ -153,20 +153,20 @@ export function OfficerEscalationTable({ setActiveSection }: { setActiveSection?
 
         <div className="overflow-x-auto">
           <Table>
-            <TableHeader className="bg-gray-50/30">
+            <TableHeader className="bg-muted/50">
               <TableRow>
-                <TableHead className="font-bold text-gray-700">Request ID</TableHead>
-                <TableHead className="font-bold text-gray-700">Farmer</TableHead>
-                <TableHead className="font-bold text-gray-700">Diagnosis</TableHead>
-                <TableHead className="font-bold text-gray-700">Status</TableHead>
-                <TableHead className="font-bold text-gray-700">Time</TableHead>
-                <TableHead className="text-right font-bold text-gray-700">Actions</TableHead>
+                <TableHead className="font-bold text-gray-700 dark:text-gray-300">Request ID</TableHead>
+                <TableHead className="font-bold text-gray-700 dark:text-gray-300">Farmer</TableHead>
+                <TableHead className="font-bold text-gray-700 dark:text-gray-300">Diagnosis</TableHead>
+                <TableHead className="font-bold text-gray-700 dark:text-gray-300">Status</TableHead>
+                <TableHead className="font-bold text-gray-700 dark:text-gray-300">Time</TableHead>
+                <TableHead className="text-right font-bold text-gray-700 dark:text-gray-300">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {filteredData.length > 0 ? (
                 filteredData.map((row) => (
-                  <TableRow key={row.id} className="hover:bg-gray-50/80 transition-colors group">
+                  <TableRow key={row.id} className="hover:bg-muted/50 transition-colors group">
                     <TableCell>
                       <div className="flex items-center gap-2">
                         <span className="font-mono text-xs font-bold text-gray-400">#{row.scan_details.uuid}</span>
@@ -177,13 +177,13 @@ export function OfficerEscalationTable({ setActiveSection }: { setActiveSection?
                         <div className="w-8 h-8 rounded-full bg-[#2E7D32]/10 flex items-center justify-center text-[#2E7D32]">
                           <User size={14} />
                         </div>
-                        <span className="font-semibold text-gray-900">{row.farmer_name}</span>
+                        <span className="font-semibold text-gray-900 dark:text-gray-100">{row.farmer_name}</span>
                       </div>
                     </TableCell>
                     <TableCell>
                       <div className="flex flex-col">
-                        <span className="text-sm font-medium text-gray-900">{row.scan_details.disease}</span>
-                        <span className="text-[10px] text-gray-500">AI Confidence: {row.scan_details.confidence}</span>
+                        <span className="text-sm font-medium text-gray-900 dark:text-gray-200">{row.scan_details.disease}</span>
+                        <span className="text-[10px] text-gray-500 dark:text-gray-400">AI Confidence: {row.scan_details.confidence}</span>
                       </div>
                     </TableCell>
                     <TableCell>
@@ -205,7 +205,7 @@ export function OfficerEscalationTable({ setActiveSection }: { setActiveSection?
                             setReviewComments(row.officer_comments || '');
                             setFinalConclusion(row.final_conclusion || '');
                           }}
-                          className="h-8 gap-1.5 text-[#2E7D32] hover:bg-[#2E7D32]/5 rounded-lg"
+                          className="h-8 gap-1.5 text-[#2E7D32] hover:bg-[#2E7D32]/10 dark:hover:bg-[#2E7D32]/20 rounded-lg"
                         >
                           <ExternalLink size={14} />
                           View
@@ -215,7 +215,7 @@ export function OfficerEscalationTable({ setActiveSection }: { setActiveSection?
                             variant="ghost" 
                             size="sm" 
                             onClick={() => handleResolve(row.id)}
-                            className="h-8 gap-1.5 text-green-600 hover:text-green-700 hover:bg-green-50 rounded-lg"
+                            className="h-8 gap-1.5 text-green-600 dark:text-green-400 hover:text-green-700 hover:bg-green-50 dark:hover:bg-green-900/20 rounded-lg"
                           >
                             <CheckCircle2 size={14} />
                             Resolve
@@ -239,7 +239,7 @@ export function OfficerEscalationTable({ setActiveSection }: { setActiveSection?
           </Table>
         </div>
 
-        <div className="p-4 border-t border-gray-100 bg-gray-50/30 flex items-center justify-between">
+        <div className="p-4 border-t border-gray-100 dark:border-gray-700 bg-muted/30 flex items-center justify-between">
           <p className="text-xs text-gray-500">
             Showing {filteredData.length} of {data.length} total escalations
           </p>
@@ -254,10 +254,10 @@ export function OfficerEscalationTable({ setActiveSection }: { setActiveSection?
       {selectedRequest && (
         <div className="fixed inset-0 z-[2000] flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/40 backdrop-blur-md" onClick={() => setSelectedRequest(null)} />
-          <Card className="relative w-full max-w-2xl bg-white shadow-2xl rounded-[2rem] overflow-hidden animate-in zoom-in-95 duration-200">
+          <Card className="relative w-full max-w-2xl bg-card shadow-2xl rounded-[2rem] overflow-hidden animate-in zoom-in-95 duration-200 border-none">
             <div className="grid grid-cols-1 md:grid-cols-2">
               {/* Left Side: Image */}
-              <div className="relative h-64 md:h-full bg-gray-100">
+              <div className="relative h-64 md:h-full bg-muted/50">
                 {selectedRequest.scan_details.image ? (
                   <img 
                     src={selectedRequest.scan_details.image} 
@@ -279,15 +279,15 @@ export function OfficerEscalationTable({ setActiveSection }: { setActiveSection?
               <div className="p-8 flex flex-col h-full">
                 <div className="flex items-center justify-between mb-6">
                   <div>
-                    <h4 className="text-2xl font-black text-gray-900 leading-tight">Case Details</h4>
-                    <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mt-1">
+                    <h4 className="text-2xl font-black text-gray-900 dark:text-white leading-tight">Case Details</h4>
+                    <p className="text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest mt-1">
                       Request #{selectedRequest.scan_details.uuid}
                     </p>
                   </div>
                   <Button 
                     variant="ghost" 
                     onClick={() => setSelectedRequest(null)}
-                    className="rounded-full w-10 h-10 p-0 text-gray-400 hover:text-gray-900"
+                    className="rounded-full w-10 h-10 p-0 text-gray-400 hover:text-gray-900 dark:hover:text-white"
                   >
                     <AlertCircle className="rotate-45" size={24} />
                   </Button>
@@ -296,13 +296,13 @@ export function OfficerEscalationTable({ setActiveSection }: { setActiveSection?
                 <div className="space-y-6 flex-1">
                   <div>
                     <label className="text-[10px] font-black text-[#2E7D32] uppercase tracking-[0.2em] mb-2 block">Farmer Information</label>
-                    <div className="flex items-center gap-3 bg-gray-50 p-3 rounded-2xl border border-gray-100">
-                      <div className="w-10 h-10 rounded-xl bg-white shadow-sm flex items-center justify-center text-[#2E7D32]">
+                    <div className="flex items-center gap-3 bg-muted/50 p-3 rounded-2xl border border-gray-100 dark:border-gray-700">
+                      <div className="w-10 h-10 rounded-xl bg-card shadow-sm flex items-center justify-center text-[#2E7D32] border border-gray-100 dark:border-gray-700">
                         <User size={20} />
                       </div>
                       <div>
-                        <p className="font-bold text-gray-900">{selectedRequest.farmer_name}</p>
-                        <p className="text-[10px] text-gray-500 font-medium">Regional Farmer Account</p>
+                        <p className="font-bold text-gray-900 dark:text-white">{selectedRequest.farmer_name}</p>
+                        <p className="text-[10px] text-gray-500 dark:text-gray-400 font-medium">Regional Farmer Account</p>
                       </div>
                     </div>
                   </div>
@@ -312,13 +312,13 @@ export function OfficerEscalationTable({ setActiveSection }: { setActiveSection?
                     <div className="space-y-3">
                       <textarea 
                         placeholder="Add your review comments here..."
-                        className="w-full bg-gray-50 border border-gray-100 rounded-2xl p-3 text-sm min-h-[80px] focus:ring-2 focus:ring-[#2E7D32]/20 focus:border-[#2E7D32] outline-none transition-all"
+                        className="w-full bg-muted/50 border border-gray-100 dark:border-gray-700 rounded-2xl p-3 text-sm min-h-[80px] focus:ring-2 focus:ring-[#2E7D32]/20 focus:border-[#2E7D32] outline-none transition-all text-gray-900 dark:text-gray-100"
                         value={reviewComments}
                         onChange={(e) => setReviewComments(e.target.value)}
                       />
                       <textarea 
                         placeholder="Final Conclusion / Treatment Plan..."
-                        className="w-full bg-[#2E7D32]/5 border border-[#2E7D32]/10 rounded-2xl p-3 text-sm font-bold text-gray-900 min-h-[60px] focus:ring-2 focus:ring-[#2E7D32]/20 focus:border-[#2E7D32] outline-none transition-all"
+                        className="w-full bg-[#2E7D32]/5 border border-[#2E7D32]/10 rounded-2xl p-3 text-sm font-bold text-gray-900 dark:text-white min-h-[60px] focus:ring-2 focus:ring-[#2E7D32]/20 focus:border-[#2E7D32] outline-none transition-all"
                         value={finalConclusion}
                         onChange={(e) => setFinalConclusion(e.target.value)}
                       />
@@ -327,7 +327,7 @@ export function OfficerEscalationTable({ setActiveSection }: { setActiveSection?
 
                   <div>
                     <label className="text-[10px] font-black text-[#2E7D32] uppercase tracking-[0.2em] mb-2 block">Farmer Notes</label>
-                    <div className="bg-green-50/50 p-4 rounded-2xl border border-green-100 italic text-sm text-gray-700 leading-relaxed max-h-32 overflow-y-auto">
+                    <div className="bg-green-50/30 dark:bg-[#2E7D32]/10 p-4 rounded-2xl border border-green-100 dark:border-[#2E7D32]/20 italic text-sm text-gray-700 dark:text-gray-300 leading-relaxed max-h-32 overflow-y-auto">
                       "{selectedRequest.notes || "No additional description provided by the farmer."}"
                     </div>
                   </div>

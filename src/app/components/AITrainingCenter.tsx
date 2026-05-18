@@ -77,6 +77,32 @@ export function AITrainingCenter() {
     toast.success("Dataset exported for training");
   };
 
+  const handleDownloadImages = async () => {
+    try {
+      const token = localStorage.getItem('access_token');
+      const response = await fetch('http://127.0.0.1:8000/api/escalation/training-data/images/', {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      if (response.ok) {
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const linkElement = document.createElement('a');
+        linkElement.href = url;
+        linkElement.download = 'training_images.zip';
+        linkElement.click();
+        window.URL.revokeObjectURL(url);
+        toast.success("Images downloaded successfully");
+      } else {
+        toast.error("Failed to download images");
+      }
+    } catch (error) {
+      console.error("Download error", error);
+      toast.error("Failed to download images");
+    }
+  };
+
   const filteredData = data.filter(item => 
     item.correct_label.toLowerCase().includes(searchTerm.toLowerCase()) ||
     item.ai_prediction_details?.predicted_label.toLowerCase().includes(searchTerm.toLowerCase())
@@ -95,47 +121,47 @@ export function AITrainingCenter() {
     <div className="space-y-6 animate-in fade-in duration-500">
       {/* Header Stats */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card className="p-4 bg-blue-50 text-blue-900 border-none shadow-sm">
+        <Card className="p-4 bg-blue-50 dark:bg-blue-900/20 text-blue-900 dark:text-blue-300 border-none shadow-sm">
           <div className="flex justify-between items-start">
             <div>
-              <p className="text-sm text-gray-600 mb-0.5">Ground Truth Samples</p>
-              <p className="text-[10px] text-gray-500">මූලික දත්ත සාම්පල</p>
+              <p className="text-sm text-gray-600 dark:text-gray-400 mb-0.5">Ground Truth Samples</p>
+              <p className="text-[10px] text-gray-500 dark:text-gray-500">මූලික දත්ත සාම්පල</p>
               <h3 className="text-2xl font-bold mt-2">{data.length}</h3>
             </div>
-            <Database className="w-8 h-8 text-blue-600" />
+            <Database className="w-8 h-8 text-blue-600 dark:text-blue-400" />
           </div>
         </Card>
         
-        <Card className="p-4 bg-green-50 text-green-900 border-none shadow-sm">
+        <Card className="p-4 bg-green-50 dark:bg-green-900/20 text-green-900 dark:text-green-300 border-none shadow-sm">
           <div className="flex justify-between items-start">
             <div>
-              <p className="text-sm text-gray-600 mb-0.5">Verification Rate</p>
-              <p className="text-[10px] text-gray-500">සත්‍යාපන අනුපාතය</p>
+              <p className="text-sm text-gray-600 dark:text-gray-400 mb-0.5">Verification Rate</p>
+              <p className="text-[10px] text-gray-500 dark:text-gray-500">සත්‍යාපන අනුපාතය</p>
               <h3 className="text-2xl font-bold mt-2">100%</h3>
             </div>
-            <CheckCircle2 className="w-8 h-8 text-green-600" />
+            <CheckCircle2 className="w-8 h-8 text-green-600 dark:text-green-400" />
           </div>
         </Card>
 
-        <Card className="p-4 bg-purple-50 text-purple-900 border-none shadow-sm">
+        <Card className="p-4 bg-purple-50 dark:bg-purple-900/20 text-purple-900 dark:text-purple-300 border-none shadow-sm">
           <div className="flex justify-between items-start">
             <div>
-              <p className="text-sm text-gray-600 mb-0.5">Active Model</p>
-              <p className="text-[10px] text-gray-500">සක්‍රීය ආකෘතිය</p>
+              <p className="text-sm text-gray-600 dark:text-gray-400 mb-0.5">Active Model</p>
+              <p className="text-[10px] text-gray-500 dark:text-gray-500">සක්‍රීය ආකෘතිය</p>
               <h3 className="text-xl font-bold mt-2">Watermelon-V1</h3>
             </div>
-            <Brain className="w-8 h-8 text-purple-600" />
+            <Brain className="w-8 h-8 text-purple-600 dark:text-purple-400" />
           </div>
         </Card>
 
-        <Card className="p-4 bg-amber-50 text-amber-900 border-none shadow-sm">
+        <Card className="p-4 bg-amber-50 dark:bg-amber-900/20 text-amber-900 dark:text-amber-300 border-none shadow-sm">
           <div className="flex justify-between items-start">
             <div>
-              <p className="text-sm text-gray-600 mb-0.5">Retraining Status</p>
-              <p className="text-[10px] text-gray-500">පුහුණු තත්ත්වය</p>
+              <p className="text-sm text-gray-600 dark:text-gray-400 mb-0.5">Retraining Status</p>
+              <p className="text-[10px] text-gray-500 dark:text-gray-500">පුහුණු තත්ත්වය</p>
               <h3 className="text-2xl font-bold mt-2">Ready</h3>
             </div>
-            <TrendingUp className="w-8 h-8 text-amber-600" />
+            <TrendingUp className="w-8 h-8 text-amber-600 dark:text-amber-400" />
           </div>
         </Card>
       </div>
@@ -144,8 +170,8 @@ export function AITrainingCenter() {
       <Card className="p-6">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-8 pb-6 border-b border-gray-100">
           <div>
-            <h3 className="text-xl font-bold text-gray-900">AI Feedback Loop</h3>
-            <p className="text-sm text-gray-500">Analyze expert corrections and export verified ground truth for model retraining.</p>
+            <h3 className="text-xl font-bold text-gray-900 dark:text-white">AI Feedback Loop</h3>
+            <p className="text-sm text-gray-500 dark:text-gray-400">Analyze expert corrections and export verified ground truth for model retraining.</p>
           </div>
           
           <div className="flex items-center gap-3">
@@ -154,15 +180,21 @@ export function AITrainingCenter() {
               <input 
                 type="text" 
                 placeholder="Search samples..." 
-                className="pl-10 pr-4 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-[#2E7D32]/10 focus:border-[#2E7D32] outline-none transition-all w-64"
+                className="pl-10 pr-4 py-2 bg-muted border border-gray-200 dark:border-gray-700 rounded-xl text-sm focus:ring-2 focus:ring-[#2E7D32]/10 focus:border-[#2E7D32] outline-none transition-all w-64 text-gray-900 dark:text-gray-100"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
               />
             </div>
-            <Button onClick={handleExportJSON} className="bg-[#2E7D32] hover:bg-[#1B5E20] text-white rounded-xl px-4 py-2 flex items-center gap-2 font-bold shadow-sm">
-              <Download size={16} />
-              Export Dataset
-            </Button>
+            <div className="flex gap-2">
+              <Button onClick={handleExportJSON} className="bg-[#2E7D32] hover:bg-[#1B5E20] text-white rounded-xl px-4 py-2 flex items-center gap-2 font-bold shadow-sm">
+                <FileJson size={16} />
+                JSON
+              </Button>
+              <Button onClick={handleDownloadImages} className="bg-[#1976D2] hover:bg-[#1565C0] text-white rounded-xl px-4 py-2 flex items-center gap-2 font-bold shadow-sm">
+                <Download size={16} />
+                Images (ZIP)
+              </Button>
+            </div>
           </div>
         </div>
 
@@ -170,10 +202,10 @@ export function AITrainingCenter() {
           {filteredData.length > 0 ? (
             <div className="space-y-4">
               {filteredData.map((sample) => (
-                <div key={sample.id} className="p-4 bg-gray-50/50 rounded-xl border border-gray-100 hover:bg-white hover:shadow-md transition-all group">
+                <div key={sample.id} className="p-4 bg-muted/30 dark:bg-gray-800/50 rounded-xl border border-gray-100 dark:border-gray-700 hover:bg-card hover:shadow-md transition-all group">
                   <div className="flex flex-col md:flex-row gap-6">
                     {/* Image Section */}
-                    <div className="w-full md:w-48 h-32 rounded-lg overflow-hidden flex-shrink-0 bg-gray-100">
+                    <div className="w-full md:w-48 h-32 rounded-lg overflow-hidden flex-shrink-0 bg-muted">
                       {sample.case_image ? (
                         <img 
                           src={sample.case_image} 
@@ -181,7 +213,7 @@ export function AITrainingCenter() {
                           className="w-full h-full object-cover"
                         />
                       ) : (
-                        <div className="w-full h-full flex items-center justify-center text-gray-300">
+                        <div className="w-full h-full flex items-center justify-center text-gray-300 dark:text-gray-600">
                           <ImageIcon size={32} />
                         </div>
                       )}
@@ -195,19 +227,19 @@ export function AITrainingCenter() {
                       </div>
 
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div className="p-3 bg-red-50 rounded-lg border border-red-100">
-                          <p className="text-[10px] font-bold text-red-600 uppercase mb-1">AI Prediction</p>
-                          <p className="font-bold text-gray-900">{sample.ai_prediction_details?.predicted_label || 'Failed'}</p>
-                          <p className="text-[10px] text-gray-500 mt-1">Confidence: {((sample.ai_prediction_details?.confidence || 0) * 100).toFixed(1)}%</p>
+                        <div className="p-3 bg-red-50 dark:bg-red-900/10 rounded-lg border border-red-100 dark:border-red-900/30">
+                          <p className="text-[10px] font-bold text-red-600 dark:text-red-400 uppercase mb-1">AI Prediction</p>
+                          <p className="font-bold text-gray-900 dark:text-white">{sample.ai_prediction_details?.predicted_label || 'Failed'}</p>
+                          <p className="text-[10px] text-gray-500 dark:text-gray-400 mt-1">Confidence: {((sample.ai_prediction_details?.confidence || 0) * 100).toFixed(1)}%</p>
                         </div>
-                        <div className="p-3 bg-green-50 rounded-lg border border-green-100">
-                          <p className="text-[10px] font-bold text-[#2E7D32] uppercase mb-1">Expert Resolution</p>
-                          <p className="font-bold text-gray-900">{sample.correct_label}</p>
-                          <p className="text-[10px] text-gray-500 mt-1">Verified by: {sample.expert_decision.officer_name}</p>
+                        <div className="p-3 bg-green-50 dark:bg-green-900/10 rounded-lg border border-green-100 dark:border-green-900/30">
+                          <p className="text-[10px] font-bold text-[#2E7D32] dark:text-green-400 uppercase mb-1">Expert Resolution</p>
+                          <p className="font-bold text-gray-900 dark:text-white">{sample.correct_label}</p>
+                          <p className="text-[10px] text-gray-500 dark:text-gray-400 mt-1">Verified by: {sample.expert_decision.officer_name}</p>
                         </div>
                       </div>
 
-                      <div className="text-sm text-gray-600 italic bg-white p-3 rounded-lg border border-gray-100">
+                      <div className="text-sm text-gray-600 dark:text-gray-300 italic bg-card p-3 rounded-lg border border-gray-100 dark:border-gray-700">
                         "{sample.expert_decision.comments || "No expert comments provided."}"
                       </div>
                     </div>

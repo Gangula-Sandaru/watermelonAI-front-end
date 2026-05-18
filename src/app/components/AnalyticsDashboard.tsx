@@ -205,7 +205,7 @@ export function AnalyticsDashboard({ userData }: AnalyticsDashboardProps) {
             <div className="space-y-3 flex-1">
               {urgentCases.length > 0 ? (
                 urgentCases.map((item, i) => (
-                  <div key={i} className="p-3 rounded-xl border border-gray-100 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-900/50 hover:bg-white dark:hover:bg-gray-800 hover:shadow-sm transition-all cursor-pointer">
+                  <div key={i} className="p-3 rounded-xl border border-gray-100 dark:border-gray-700 bg-muted/50 dark:bg-gray-800/50 hover:bg-white dark:hover:bg-gray-700 hover:shadow-sm transition-all cursor-pointer">
                     <div className="flex justify-between items-center mb-1">
                       <p className="text-[10px] font-bold text-gray-400 dark:text-gray-500">{item.id}</p>
                       <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${item.risk === 'High' ? 'bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400' : 'bg-green-50 dark:bg-green-900/30 text-green-600 dark:text-green-400'}`}>
@@ -238,7 +238,7 @@ export function AnalyticsDashboard({ userData }: AnalyticsDashboardProps) {
                     <span className="text-gray-600 dark:text-gray-400">{group.label}</span>
                     <span className="text-gray-900 dark:text-gray-200">{group.val}</span>
                   </div>
-                  <div className="w-full h-2 bg-gray-100 dark:bg-gray-700 rounded-full overflow-hidden">
+                  <div className="w-full h-2 bg-muted dark:bg-gray-700 rounded-full overflow-hidden">
                     <div className={`h-full ${group.color}`} style={{ width: group.val }}></div>
                   </div>
                 </div>

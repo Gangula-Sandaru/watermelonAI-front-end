@@ -240,7 +240,7 @@ export function SatelliteMonitoringView() {
   };
 
   return (
-    <Card className={`p-6 bg-white transition-all duration-300 ${isFullscreen ? 'fixed inset-0 z-[9999] rounded-none m-0 h-screen overflow-hidden flex flex-col' : ''}`}>
+    <Card className={`p-6 bg-card transition-all duration-300 ${isFullscreen ? 'fixed inset-0 z-[9999] rounded-none m-0 h-screen overflow-hidden flex flex-col' : ''}`}>
       <div className="flex flex-col md:flex-row items-start md:items-center justify-between mb-4 gap-4 flex-shrink-0">
         <div>
           <h3 className="font-semibold text-gray-900 dark:text-white">Satellite Crop Monitoring</h3>
@@ -255,7 +255,7 @@ export function SatelliteMonitoringView() {
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
-            className="w-full border dark:border-gray-700 rounded-l-md px-3 py-1.5 text-sm outline-none focus:border-[#2ecc71] bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
+            className="w-full border dark:border-gray-700 rounded-l-md px-3 py-1.5 text-sm outline-none focus:border-[#2ecc71] bg-card dark:bg-gray-800 text-gray-900 dark:text-gray-100"
           />
           <Button onClick={handleSearch} className="rounded-l-none bg-gray-800 dark:bg-gray-700 hover:bg-gray-700 dark:hover:bg-gray-600 text-white">
             <Search className="w-4 h-4" />
@@ -275,7 +275,7 @@ export function SatelliteMonitoringView() {
                 placeholder="Farm Name" 
                 value={newFarmName}
                 onChange={(e) => setNewFarmName(e.target.value)}
-                className="border dark:border-gray-700 rounded px-3 py-1.5 text-sm outline-none focus:border-[#2ecc71] bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
+                className="border dark:border-gray-700 rounded px-3 py-1.5 text-sm outline-none focus:border-[#2ecc71] bg-card dark:bg-gray-800 text-gray-900 dark:text-gray-100"
               />
               <Button onClick={handleSaveFarm} className="bg-[#2ecc71] hover:bg-[#27ae60] text-white">
                 <Save className="w-4 h-4 mr-2" />
@@ -293,19 +293,19 @@ export function SatelliteMonitoringView() {
       <div className={`flex flex-col lg:flex-row gap-6 ${isFullscreen ? 'flex-grow min-h-0' : ''}`}>
         
         {/* Farm List Panel */}
-        <div className={`flex flex-col bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden shadow-sm flex-shrink-0 ${isFullscreen ? 'w-80 h-full' : 'w-full lg:w-72 h-[500px]'}`}>
-          <div className="p-4 bg-gray-50 dark:bg-gray-900/50 border-b border-gray-200 dark:border-gray-700">
+        <div className={`flex flex-col bg-card dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden shadow-sm flex-shrink-0 ${isFullscreen ? 'w-80 h-full' : 'w-full lg:w-72 h-[500px]'}`}>
+          <div className="p-4 bg-muted/50 dark:bg-gray-900/50 border-b border-gray-200 dark:border-gray-700">
             <h4 className="font-semibold text-gray-800 dark:text-gray-200 flex items-center gap-2">
               <Layers className="w-4 h-4 text-[#2ecc71]" /> My Farms
             </h4>
           </div>
-          <div className="overflow-y-auto flex-1 p-3 space-y-3 bg-gray-50/50 dark:bg-gray-900/30">
+          <div className="overflow-y-auto flex-1 p-3 space-y-3 bg-muted/20 dark:bg-gray-900/30">
             {farms.length === 0 && !loading && (
               <p className="text-sm text-gray-500 p-4 text-center">No farms saved yet. Click "Draw Farm Boundary" to add one.</p>
             )}
             {loading && <p className="text-sm text-gray-500 dark:text-gray-400 p-4 text-center">Loading farms...</p>}
             {farms.map(farm => (
-              <div key={farm.id} className="p-3 border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 rounded-lg hover:shadow-md transition-all group">
+              <div key={farm.id} className="p-3 border border-gray-200 dark:border-gray-700 bg-card dark:bg-gray-800 rounded-lg hover:shadow-md transition-all group">
                 <div className="flex justify-between items-start mb-3">
                   {editingFarmId === farm.id ? (
                     <div className="flex items-center gap-1 w-full mr-2">
@@ -315,7 +315,7 @@ export function SatelliteMonitoringView() {
                         onChange={(e) => setEditFarmName(e.target.value)}
                         className="text-sm font-semibold border-b border-green-500 outline-none w-full px-1 py-0.5 bg-transparent text-gray-900 dark:text-white"
                       />
-                      <button onClick={() => handleEditFarmSave(farm.id)} className="text-green-600 hover:text-green-800 p-1 bg-green-50 rounded">
+                      <button onClick={() => handleEditFarmSave(farm.id)} className="text-green-600 hover:text-green-800 p-1 bg-green-50 dark:bg-green-900/30 rounded">
                         <Check className="w-3.5 h-3.5" />
                       </button>
                       <button onClick={() => setEditingFarmId(null)} className="text-gray-400 hover:text-gray-600 p-1">
@@ -452,20 +452,20 @@ export function SatelliteMonitoringView() {
                     pathOptions={{ color: color, fillColor: color, fillOpacity: 0.15, weight: 2 }}
                   >
                     <Popup>
-                      <div className="p-1 min-w-[150px]">
-                        <h4 className="font-bold text-gray-900 mb-1">{farm.name}</h4>
+                      <div className="p-1 min-w-[150px] dark:bg-gray-800 dark:text-white">
+                        <h4 className="font-bold text-gray-900 dark:text-white mb-1">{farm.name}</h4>
                         {latestScan ? (
                           <div>
                             <p className="text-sm font-semibold" style={{ color }}>
                               Status: {latestScan.status.toUpperCase()}
                             </p>
-                            <p className="text-xs text-gray-600 mt-1">
+                            <p className="text-xs text-gray-600 dark:text-gray-300 mt-1">
                               Avg NDVI Index: {latestScan.ndvi_value.toFixed(2)}
                             </p>
-                            <p className="text-xs text-gray-400 mt-1">
+                            <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
                               Scanned: {new Date(latestScan.scan_date).toLocaleDateString()}
                             </p>
-                            <p className="text-xs mt-2 font-semibold text-gray-700">Problem Patches: {hotspots.length}</p>
+                            <p className="text-xs mt-2 font-semibold text-gray-700 dark:text-gray-200">Problem Patches: {hotspots.length}</p>
                           </div>
                         ) : (
                           <p className="text-xs text-gray-500">No scan data available.</p>
@@ -490,17 +490,17 @@ export function SatelliteMonitoringView() {
                       className="animate-pulse"
                     >
                       <Popup>
-                        <div className="p-1 min-w-[150px]">
-                          <h4 className="font-bold text-gray-900 mb-1">{spot.name}</h4>
+                        <div className="p-1 min-w-[150px] dark:bg-gray-800 dark:text-white">
+                          <h4 className="font-bold text-gray-900 dark:text-white mb-1">{spot.name}</h4>
                           <p className="text-sm font-semibold" style={{ color: spot.color }}>
                             {spot.category} (NDVI: {spot.ndvi.toFixed(2)})
                           </p>
                           <div className="mt-2">
-                            <p className="text-xs font-semibold text-gray-600 border-b pb-1 mb-1">Scan History Tracker</p>
+                            <p className="text-xs font-semibold text-gray-600 dark:text-gray-400 border-b dark:border-gray-700 pb-1 mb-1">Scan History Tracker</p>
                             <div className="max-h-[100px] overflow-y-auto space-y-1">
                               {spot.history.slice().reverse().map((h: any, i: number) => (
                                 <div key={i} className="flex justify-between text-xs">
-                                  <span className="text-gray-500">Scan {spot.history.length - i}</span>
+                                  <span className="text-gray-500 dark:text-gray-400">Scan {spot.history.length - i}</span>
                                   <span className="font-mono font-medium" style={{ color: h.ndvi_value < 0.3 ? '#ef4444' : (h.ndvi_value > 0.6 ? '#2ecc71' : '#f59e0b') }}>
                                     {h.ndvi_value.toFixed(2)}
                                   </span>
@@ -527,7 +527,7 @@ export function SatelliteMonitoringView() {
           </MapContainer>
 
           {/* Legend Overlay */}
-          <div className="absolute bottom-6 left-6 bg-white/95 dark:bg-gray-800/95 backdrop-blur-sm rounded-lg shadow-lg p-3 z-[1000] border border-gray-100 dark:border-gray-700">
+          <div className="absolute bottom-6 left-6 bg-card/95 dark:bg-gray-800/95 backdrop-blur-sm rounded-lg shadow-lg p-3 z-[1000] border border-gray-100 dark:border-gray-700">
             <p className="text-xs font-semibold mb-2 text-gray-800 dark:text-gray-200">Vegetation Health Index (NDVI)</p>
             <div className="flex items-center gap-2">
               <div className="w-32 h-2.5 rounded-full bg-gradient-to-r from-[#ff4b6b] via-[#f59e0b] to-[#2ecc71]"></div>
@@ -551,10 +551,10 @@ export function SatelliteMonitoringView() {
             <p className="text-xs text-gray-500 dark:text-gray-400">Track patch recovery over time</p>
           </div>
           
-          <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl shadow-sm overflow-hidden">
+          <div className="bg-card dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl shadow-sm overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full text-sm text-left">
-                <thead className="bg-gray-50 dark:bg-gray-900/50 border-b border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400">
+                <thead className="bg-muted dark:bg-gray-900/50 border-b border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400">
                   <tr>
                     <th className="px-4 py-3 font-semibold">Farm Name</th>
                     <th className="px-4 py-3 font-semibold">Overall Status</th>
@@ -580,7 +580,7 @@ export function SatelliteMonitoringView() {
                     const patches = farm.patches || [];
                     
                     return (
-                      <tr key={`table-${farm.id}`} className="hover:bg-gray-50 dark:hover:bg-gray-900/50 transition-colors">
+                      <tr key={`table-${farm.id}`} className="hover:bg-muted/50 dark:hover:bg-gray-900/50 transition-colors">
                         <td className="px-4 py-4 font-medium text-gray-900 dark:text-white">
                           {farm.name}
                         </td>
@@ -612,7 +612,7 @@ export function SatelliteMonitoringView() {
                                 const recent = history.slice(-5);
                                 return (
                                   <div key={`patch-hist-${patch.id}`} className="flex items-center gap-2 text-xs">
-                                    <span className="font-semibold text-gray-700 w-16 truncate" title={patch.name}>{patch.name}:</span>
+                                    <span className="font-semibold text-gray-700 dark:text-gray-200 w-16 truncate" title={patch.name}>{patch.name}:</span>
                                     <div className="flex items-center gap-1">
                                       {recent.map((h: any, i: number) => {
                                         const hColor = h.ndvi_value < 0.3 ? 'text-red-600' : (h.ndvi_value > 0.6 ? 'text-green-600' : 'text-orange-500');

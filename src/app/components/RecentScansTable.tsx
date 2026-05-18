@@ -59,17 +59,17 @@ export function RecentScansTable() {
   };
 
   const severityColors: Record<string, string> = {
-    HIGH: 'bg-red-100 text-red-800 border-red-200',
-    MEDIUM: 'bg-amber-100 text-amber-800 border-amber-200',
-    LOW: 'bg-green-100 text-green-800 border-green-200',
-    UNKNOWN: 'bg-gray-100 text-gray-800 border-gray-200',
+    HIGH: 'bg-red-100 text-red-800 border-red-200 dark:bg-red-900/30 dark:text-red-400 dark:border-red-800/50',
+    MEDIUM: 'bg-amber-100 text-amber-800 border-amber-200 dark:bg-amber-900/30 dark:text-amber-400 dark:border-amber-800/50',
+    LOW: 'bg-green-100 text-green-800 border-green-200 dark:bg-green-900/30 dark:text-green-400 dark:border-green-800/50',
+    UNKNOWN: 'bg-gray-100 text-gray-800 border-gray-200 dark:bg-gray-800 dark:text-gray-400 dark:border-gray-700',
   };
 
   const statusColors: Record<string, string> = {
-    COMPLETED: 'bg-green-100 text-green-800',
-    PROCESSING: 'bg-blue-100 text-blue-800',
-    FAILED: 'bg-red-100 text-red-800',
-    PENDING: 'bg-amber-100 text-amber-800',
+    COMPLETED: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400',
+    PROCESSING: 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400',
+    FAILED: 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400',
+    PENDING: 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400',
   };
 
   return (

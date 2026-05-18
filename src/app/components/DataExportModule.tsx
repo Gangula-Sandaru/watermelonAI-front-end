@@ -173,7 +173,7 @@ export const DataExportModule = ({ userData }: { userData: any }) => {
                   className={`px-4 py-3 rounded-lg border text-sm font-medium transition-all ${
                     selectedDataTypes.includes(type.id)
                       ? 'border-[#2E7D32] bg-green-50 dark:bg-green-900/20 text-[#2E7D32] dark:text-green-400 ring-1 ring-[#2E7D32]'
-                      : 'border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700'
+                      : 'border-gray-200 dark:border-gray-700 bg-card dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-muted dark:hover:bg-gray-700'
                   }`}
                 >
                   {type.label}
@@ -200,7 +200,7 @@ export const DataExportModule = ({ userData }: { userData: any }) => {
                   className={`px-4 py-2 rounded-lg border text-xs font-medium transition-all ${
                     dateRange === range.id
                       ? 'border-gray-900 dark:border-white bg-gray-900 dark:bg-white text-white dark:text-gray-900'
-                      : 'border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700'
+                      : 'border-gray-200 dark:border-gray-700 bg-card dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-muted dark:hover:bg-gray-700'
                   }`}
                 >
                   {range.label}
@@ -226,7 +226,7 @@ export const DataExportModule = ({ userData }: { userData: any }) => {
                   className={`flex-1 flex flex-col items-center justify-center gap-2 p-4 rounded-lg border-2 transition-all ${
                     selectedFormat === format.id
                       ? 'border-[#2E7D32] bg-green-50 dark:bg-green-900/20'
-                      : 'border-gray-100 dark:border-gray-700 bg-white dark:bg-gray-800 hover:border-gray-200 dark:hover:border-gray-600'
+                      : 'border-gray-100 dark:border-gray-700 bg-card dark:bg-gray-800 hover:border-gray-200 dark:hover:border-gray-600'
                   }`}
                 >
                   <format.icon size={24} className={selectedFormat === format.id ? 'text-[#2E7D32]' : 'text-gray-400 dark:text-gray-500'} />
@@ -262,7 +262,7 @@ export const DataExportModule = ({ userData }: { userData: any }) => {
             <h4 className="font-bold text-gray-800 dark:text-white">Export History</h4>
           </div>
 
-          <div className="bg-gray-50 dark:bg-gray-900/50 border-2 border-dashed border-gray-200 dark:border-gray-700 rounded-lg p-4 flex-1">
+          <div className="bg-muted/50 dark:bg-gray-900/50 border-2 border-dashed border-gray-200 dark:border-gray-700 rounded-lg p-4 flex-1">
             <div className="space-y-3">
               {exportHistory.length === 0 ? (
                 <div className="text-center py-10">
@@ -271,7 +271,7 @@ export const DataExportModule = ({ userData }: { userData: any }) => {
                 </div>
               ) : (
                 exportHistory.map((item) => (
-                  <div key={item.id} className="bg-white dark:bg-gray-800 p-3 rounded-lg border border-gray-200 dark:border-gray-700 flex items-center justify-between group">
+                  <div key={item.id} className="bg-card dark:bg-gray-800 p-3 rounded-lg border border-gray-200 dark:border-gray-700 flex items-center justify-between group">
                     <div className="flex items-center gap-3">
                       <div className={`p-2 rounded-md ${item.format === 'pdf' ? 'bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400' : item.format === 'csv' ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400' : 'bg-green-50 dark:bg-green-900/20 text-green-600 dark:text-green-400'}`}>
                         <FileText size={16} />

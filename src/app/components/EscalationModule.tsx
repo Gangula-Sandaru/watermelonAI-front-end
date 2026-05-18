@@ -141,11 +141,11 @@ export const EscalationModule = () => {
       <Card className="p-6">
         <div className="flex items-center justify-between mb-8">
           <div>
-            <h3 className="font-semibold text-gray-900 text-xl flex items-center gap-2">
+            <h3 className="font-semibold text-gray-900 dark:text-white text-xl flex items-center gap-2">
               <ShieldAlert className="text-red-600" />
               Expert Consultation
             </h3>
-            <p className="text-sm text-gray-500">කෘෂිකර්ම විශේෂඥයෙකුගේ සහාය ලබා ගැනීම</p>
+            <p className="text-sm text-gray-500 dark:text-gray-400">කෘෂිකර්ම විශේෂඥයෙකුගේ සහාය ලබා ගැනීම</p>
           </div>
           <div className="flex gap-2">
             {[1, 2, 3].map((step) => (
@@ -158,7 +158,7 @@ export const EscalationModule = () => {
                 }}
                 className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm transition-all ${
                   activeStep === step ? 'bg-[#2E7D32] text-white scale-110 shadow-md' : 
-                  activeStep > step ? 'bg-green-100 text-[#2E7D32] hover:bg-green-200' : 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                  activeStep > step ? 'bg-green-100 dark:bg-green-900/30 text-[#2E7D32] dark:text-green-400 hover:bg-green-200' : 'bg-muted dark:bg-gray-800 text-gray-400 dark:text-gray-500 cursor-not-allowed'
                 }`}
               >
                 {step}
@@ -171,7 +171,7 @@ export const EscalationModule = () => {
           
           {/* Step 1: Select Scan */}
           <div className={`space-y-4 transition-all duration-300 ${activeStep !== 1 ? 'opacity-40 grayscale pointer-events-none' : ''}`}>
-            <h4 className="font-bold text-gray-900 flex items-center gap-2">
+            <h4 className="font-bold text-gray-900 dark:text-white flex items-center gap-2">
               <History size={18} className="text-[#2E7D32]" />
               1. Select Problem Case
             </h4>
@@ -181,7 +181,7 @@ export const EscalationModule = () => {
                   key={scan.id}
                   onClick={() => handleSelectScan(scan)}
                   className={`p-3 rounded-xl border-2 transition-all cursor-pointer hover:shadow-md ${
-                    selectedScan?.id === scan.id ? 'border-[#2E7D32] bg-green-50 shadow-sm' : 'border-gray-100 hover:border-gray-200'
+                    selectedScan?.id === scan.id ? 'border-[#2E7D32] bg-green-50 dark:bg-green-900/10 shadow-sm' : 'border-gray-100 dark:border-gray-800 bg-card hover:border-gray-200 dark:hover:border-gray-700'
                   }`}
                 >
                   <div className="flex justify-between items-start mb-1">
@@ -196,8 +196,8 @@ export const EscalationModule = () => {
                        'LOW CONFIDENCE'}
                     </span>
                   </div>
-                  <p className="font-bold text-gray-900 text-sm">{scan.prediction?.disease_name || 'Processing...'}</p>
-                  <p className="text-[10px] text-gray-500">{new Date(scan.created_at).toLocaleDateString()} • AI Match: {scan.prediction ? (scan.prediction.confidence * 100).toFixed(0) + '%' : 'N/A'}</p>
+                  <p className="font-bold text-gray-900 dark:text-white text-sm">{scan.prediction?.disease_name || 'Processing...'}</p>
+                  <p className="text-[10px] text-gray-500 dark:text-gray-400">{new Date(scan.created_at).toLocaleDateString()} • AI Match: {scan.prediction ? (scan.prediction.confidence * 100).toFixed(0) + '%' : 'N/A'}</p>
                 </div>
               ))}
             </div>
@@ -205,7 +205,7 @@ export const EscalationModule = () => {
 
           {/* Step 2: Select Officer */}
           <div className={`space-y-4 transition-all duration-300 ${activeStep !== 2 ? 'opacity-40 grayscale pointer-events-none' : ''}`}>
-            <h4 className="font-bold text-gray-900 flex items-center gap-2">
+            <h4 className="font-bold text-gray-900 dark:text-white flex items-center gap-2">
               <User size={18} className="text-[#2E7D32]" />
               2. Choose an Expert
             </h4>
@@ -215,7 +215,7 @@ export const EscalationModule = () => {
                 <input 
                   type="text" 
                   placeholder="Filter officers..."
-                  className="w-full pl-9 pr-4 py-2 border border-gray-200 rounded-lg text-xs outline-none focus:border-[#2E7D32]"
+                  className="w-full pl-9 pr-4 py-2 border border-gray-200 dark:border-gray-700 bg-background rounded-lg text-xs outline-none focus:border-[#2E7D32] text-gray-900 dark:text-gray-100"
                 />
               </div>
               {officers.length > 0 ? (
@@ -224,13 +224,13 @@ export const EscalationModule = () => {
                     key={officer.id}
                     onClick={() => handleSelectOfficer(officer)}
                     className={`p-3 rounded-xl border-2 transition-all hover:shadow-md ${
-                      !officer.is_available ? 'opacity-50 cursor-not-allowed bg-gray-50' : 'cursor-pointer'
+                      !officer.is_available ? 'opacity-50 cursor-not-allowed bg-muted' : 'cursor-pointer'
                     } ${
-                      selectedOfficer?.id === officer.id ? 'border-[#2E7D32] bg-green-50 shadow-sm' : 'border-gray-100 hover:border-gray-200'
+                      selectedOfficer?.id === officer.id ? 'border-[#2E7D32] bg-green-50 dark:bg-green-900/10 shadow-sm' : 'border-gray-100 dark:border-gray-800 bg-card hover:border-gray-200 dark:hover:border-gray-700'
                     }`}
                   >
                     <div className="flex justify-between items-center mb-1">
-                      <p className="font-bold text-gray-900 text-sm">{officer.name}</p>
+                      <p className="font-bold text-gray-900 dark:text-white text-sm">{officer.name}</p>
                       <span className={`text-[10px] font-bold ${officer.is_available ? 'text-green-600' : 'text-gray-400'}`}>
                         {officer.is_available ? 'Available' : 'Unavailable'}
                       </span>
@@ -241,7 +241,7 @@ export const EscalationModule = () => {
                   </div>
                 ))
               ) : (
-                <div className="flex flex-col items-center justify-center py-8 text-center text-gray-400 border-2 border-dashed border-gray-100 rounded-2xl">
+                  <div className="flex flex-col items-center justify-center py-8 text-center text-gray-400 border-2 border-dashed border-gray-100 dark:border-gray-800 rounded-2xl">
                   <User size={32} className="mb-2 opacity-20" />
                   <p className="text-xs font-bold">No officers found in your area.</p>
                   <p className="text-[10px]">Please try again later or contact support.</p>
@@ -252,18 +252,18 @@ export const EscalationModule = () => {
 
           {/* Step 3: Notes & Submit */}
           <div className={`space-y-4 transition-all duration-300 ${activeStep !== 3 ? 'opacity-40 grayscale pointer-events-none' : ''}`}>
-            <h4 className="font-bold text-gray-900 flex items-center gap-2">
+            <h4 className="font-bold text-gray-900 dark:text-white flex items-center gap-2">
               <MessageSquare size={18} className="text-[#2E7D32]" />
               3. Finalize & Send
             </h4>
             <div className="space-y-4">
-              <div className="bg-gray-50 p-4 rounded-xl border border-gray-200">
-                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">Escalation Summary</p>
+              <div className="bg-muted p-4 rounded-xl border border-gray-200 dark:border-gray-700">
+                <p className="text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest mb-2">Escalation Summary</p>
                 <div className="space-y-1">
-                  <p className="text-xs font-bold text-gray-900 flex items-center justify-between">
+                  <p className="text-xs font-bold text-gray-900 dark:text-gray-100 flex items-center justify-between">
                     <span>Case:</span> <span className="text-[#2E7D32]">{selectedScan?.request_uuid?.substring(0, 8)}</span>
                   </p>
-                  <p className="text-xs font-bold text-gray-900 flex items-center justify-between">
+                  <p className="text-xs font-bold text-gray-900 dark:text-gray-100 flex items-center justify-between">
                     <span>Officer:</span> <span className="text-[#2E7D32]">{selectedOfficer?.name}</span>
                   </p>
                 </div>
@@ -275,7 +275,7 @@ export const EscalationModule = () => {
                   value={notes}
                   onChange={(e) => setNotes(e.target.value)}
                   placeholder="E.g., Spread observed in Plot B, organic treatment failed..."
-                  className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm min-h-[120px] outline-none focus:border-[#2E7D32]"
+                  className="w-full px-4 py-3 border border-gray-200 dark:border-gray-700 bg-background rounded-xl text-sm min-h-[120px] outline-none focus:border-[#2E7D32] text-gray-900 dark:text-gray-100"
                 />
               </div>
 
@@ -297,14 +297,14 @@ export const EscalationModule = () => {
       {/* Escalation History */}
       <Card className="p-6">
         <div className="flex items-center justify-between mb-6">
-          <h4 className="font-bold text-gray-900 flex items-center gap-2">
+          <h4 className="font-bold text-gray-900 dark:text-white flex items-center gap-2">
             <History className="text-[#2E7D32]" />
             Active Escalations
           </h4>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm text-left">
-            <thead className="bg-gray-50 text-gray-600">
+            <thead className="bg-muted text-gray-600 dark:text-gray-400">
               <tr>
                 <th className="px-4 py-3 font-semibold">Request ID</th>
                 <th className="px-4 py-3 font-semibold">Officer Name</th>
@@ -318,10 +318,10 @@ export const EscalationModule = () => {
               {requests.length > 0 ? (
                 requests.map((req) => (
                   <React.Fragment key={req.id}>
-                    <tr className="hover:bg-gray-50 transition-colors">
-                      <td className="px-4 py-4 font-bold text-gray-900">REQ-{String(req.id).padStart(3, '0')}</td>
-                      <td className="px-4 py-4 text-gray-700">{req.officer_name}</td>
-                      <td className="px-4 py-4 text-gray-500 font-mono text-xs">{req.scan_id?.substring(0, 8)}</td>
+                    <tr className="hover:bg-muted/50 dark:hover:bg-gray-800 transition-colors">
+                      <td className="px-4 py-4 font-bold text-gray-900 dark:text-white">REQ-{String(req.id).padStart(3, '0')}</td>
+                      <td className="px-4 py-4 text-gray-700 dark:text-gray-300">{req.officer_name}</td>
+                      <td className="px-4 py-4 text-gray-500 dark:text-gray-400 font-mono text-xs">{req.scan_id?.substring(0, 8)}</td>
                       <td className="px-4 py-4">
                         <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold ${
                           req.status === 'PENDING' ? 'bg-amber-100 text-amber-700' : 
@@ -330,7 +330,7 @@ export const EscalationModule = () => {
                           {req.status}
                         </span>
                       </td>
-                      <td className="px-4 py-4 text-gray-500">{new Date(req.created_at).toLocaleDateString()}</td>
+                      <td className="px-4 py-4 text-gray-500 dark:text-gray-400">{new Date(req.created_at).toLocaleDateString()}</td>
                       <td className="px-4 py-4 text-right">
                         <Button 
                           variant="outline" 
@@ -353,17 +353,17 @@ export const EscalationModule = () => {
                                 <span className="text-xs font-black text-[#2E7D32] uppercase tracking-wider">Expert Decision</span>
                               </div>
                               {req.final_conclusion && (
-                                <p className="text-sm font-bold text-gray-900 leading-snug">
+                                <p className="text-sm font-bold text-gray-900 dark:text-white leading-snug">
                                   {req.final_conclusion}
                                 </p>
                               )}
                               {req.officer_comments && (
-                                <p className="text-xs text-gray-600 italic">
+                                <p className="text-xs text-gray-600 dark:text-gray-400 italic">
                                   Expert Notes: "{req.officer_comments}"
                                 </p>
                               )}
                             </div>
-                            <div className="text-[10px] text-[#2E7D32] font-bold bg-white px-3 py-1 rounded-full border border-[#2E7D32]/20">
+                            <div className="text-[10px] text-[#2E7D32] dark:text-green-400 font-bold bg-white dark:bg-gray-800 px-3 py-1 rounded-full border border-[#2E7D32]/20 dark:border-green-800/40">
                               Official Resolution
                             </div>
                           </div>
@@ -391,8 +391,8 @@ export const EscalationModule = () => {
       {/* Chat Slide-over Interface */}
       {activeChat && (
         <div className="fixed inset-0 z-[1000] flex justify-end">
-          <div className="absolute inset-0 bg-black/20 backdrop-blur-sm" onClick={() => setActiveChat(null)} />
-          <div className="relative w-full max-w-md bg-white h-full shadow-2xl flex flex-col animate-in slide-in-from-right duration-300">
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setActiveChat(null)} />
+          <div className="relative w-full max-w-md bg-card h-full shadow-2xl flex flex-col animate-in slide-in-from-right duration-300">
             {/* Chat Header */}
             <div className="p-4 border-b border-gray-100 flex items-center justify-between bg-[#2E7D32] text-white">
               <div className="flex items-center gap-3">
@@ -410,9 +410,9 @@ export const EscalationModule = () => {
             </div>
 
             {/* Chat Messages */}
-            <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-gray-50">
+            <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-muted/50">
               <div className="text-center mb-6">
-                <span className="text-[10px] font-bold text-gray-400 bg-white px-3 py-1 rounded-full border border-gray-100 uppercase tracking-widest">
+                <span className="text-[10px] font-bold text-gray-400 dark:text-gray-500 bg-card px-3 py-1 rounded-full border border-gray-100 dark:border-gray-800 uppercase tracking-widest">
                   Secure Consultation Channel
                 </span>
               </div>
@@ -422,10 +422,10 @@ export const EscalationModule = () => {
                   <div className={`max-w-[80%] p-3 rounded-2xl text-sm ${
                     msg.sender_type === 'farmer' 
                       ? 'bg-[#2E7D32] text-white rounded-tr-none shadow-sm' 
-                      : 'bg-white text-gray-800 rounded-tl-none border border-gray-100 shadow-sm'
+                      : 'bg-card text-gray-800 dark:text-gray-200 rounded-tl-none border border-gray-100 dark:border-gray-800 shadow-sm'
                   }`}>
                     <p>{msg.text}</p>
-                    <p className={`text-[9px] mt-1 ${msg.sender_type === 'farmer' ? 'text-white/70' : 'text-gray-400'}`}>
+                    <p className={`text-[9px] mt-1 ${msg.sender_type === 'farmer' ? 'text-white/70' : 'text-gray-400 dark:text-gray-500'}`}>
                       {msg.time}
                     </p>
                   </div>
@@ -434,7 +434,7 @@ export const EscalationModule = () => {
             </div>
 
             {/* Chat Input */}
-            <div className="p-4 border-t border-gray-100 bg-white">
+            <div className="p-4 border-t border-gray-100 dark:border-gray-800 bg-card">
               <div className="flex gap-2">
                 <input 
                   type="text" 
@@ -442,7 +442,7 @@ export const EscalationModule = () => {
                   onChange={(e) => setNewMessage(e.target.value)}
                   onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()}
                   placeholder="Type your message..."
-                  className="flex-1 px-4 py-2 bg-gray-50 border border-gray-200 rounded-full text-sm outline-none focus:border-[#2E7D32] transition-all"
+                  className="flex-1 px-4 py-2 bg-muted border border-gray-200 dark:border-gray-700 rounded-full text-sm outline-none focus:border-[#2E7D32] transition-all text-gray-900 dark:text-gray-100"
                 />
                 <Button 
                   onClick={handleSendMessage}

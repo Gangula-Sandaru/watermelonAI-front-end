@@ -5,6 +5,24 @@
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>watermelonapp</title>
+    <script>
+      (function() {
+        const path = window.location.pathname;
+        const isAuthPage = ['/login', '/register', '/forgot-password', '/reset-password', '/verify-email'].includes(path) || path === '/';
+        
+        if (isAuthPage) {
+          document.documentElement.classList.remove('dark');
+          return;
+        }
+
+        const theme = localStorage.getItem('theme_preference') || 'light';
+        if (theme === 'dark') {
+          document.documentElement.classList.add('dark');
+        } else {
+          document.documentElement.classList.remove('dark');
+        }
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

@@ -85,7 +85,7 @@ export function TreatmentRecommendation({ diseaseName, recommendationData }: Tre
 
               <div className="space-y-2">
                 {treatment.methods.map((method, idx) => (
-                  <div key={idx} className="bg-white dark:bg-gray-800 rounded-lg p-3 shadow-sm border border-white dark:border-gray-700">
+                  <div key={idx} className="bg-card dark:bg-gray-800 rounded-lg p-3 shadow-sm border border-gray-100 dark:border-gray-700">
                     <div className="flex items-start gap-2">
                       <CircleCheck className={`w-4 h-4 ${colors.icon} flex-shrink-0 mt-0.5`} />
                       <p className="text-sm font-medium text-gray-800 dark:text-gray-200 leading-snug">{method}</p>

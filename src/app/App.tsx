@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useLayoutEffect } from 'react';
 import { BarChart2 } from 'lucide-react';
 import { Sidebar } from './components/Sidebar';
 import { WeatherRiskWidget } from './components/WeatherRiskWidget';
@@ -44,6 +44,7 @@ export default function App() {
     return !!localStorage.getItem('access_token');
   });
 
+
   const [userData, setUserData] = useState<{ username?: string, email?: string, role?: string } | null>(null);
 
   useEffect(() => {
@@ -64,11 +65,14 @@ export default function App() {
             const data = await response.json();
             setUserData(data);
             
-            // Apply theme preference from profile
-            if (data.theme_preference === 'dark') {
-              document.documentElement.classList.add('dark');
-            } else {
-              document.documentElement.classList.remove('dark');
+            // Apply theme preference from profile and save to localStorage
+            if (data.theme_preference) {
+              localStorage.setItem('theme_preference', data.theme_preference);
+              if (data.theme_preference === 'dark') {
+                document.documentElement.classList.add('dark');
+              } else {
+                document.documentElement.classList.remove('dark');
+              }
             }
 
             // Auto-redirect if admin to AI Training
@@ -116,6 +120,24 @@ export default function App() {
 
   const [authMode, setAuthMode] = useState<'landing' | 'login' | 'register' | 'forgot-password' | 'reset-password' | 'verify-email'>(getInitialAuthMode());
   const [activeSection, setActiveSection] = useState(getInitialSection());
+
+  // Apply theme immediately from localStorage even before profile loads
+  // But keep Login/Register/Landing always in light mode as requested
+  useLayoutEffect(() => {
+    const isAuthPage = !isAuthenticated;
+    
+    if (isAuthPage) {
+      document.documentElement.classList.remove('dark');
+      return;
+    }
+
+    const savedTheme = localStorage.getItem('theme_preference') || 'light';
+    if (savedTheme === 'dark') {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
+  }, [isAuthenticated, authMode]);
 
   // Handle URL syncing when state changes
   useEffect(() => {

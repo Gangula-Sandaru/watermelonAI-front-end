@@ -127,6 +127,7 @@ export const SettingsModule = () => {
       }
 
       if (response.ok) {
+        localStorage.setItem('theme_preference', theme);
         toast.success("Settings saved successfully");
       } else {
         toast.error("Failed to save settings");

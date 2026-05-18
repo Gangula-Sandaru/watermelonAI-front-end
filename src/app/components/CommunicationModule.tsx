@@ -128,60 +128,60 @@ export const CommunicationModule = () => {
         
         {/* Left Sidebar: Contact List */}
         <Card className="col-span-12 md:col-span-4 flex flex-col overflow-hidden border-none shadow-xl">
-          <div className="p-6 border-b border-gray-100 bg-white sticky top-0 z-10">
+          <div className="p-6 border-b border-gray-100 dark:border-gray-700 bg-card sticky top-0 z-10">
             <div className="flex items-center justify-between mb-6">
-              <h3 className="font-black text-xl text-gray-900 flex items-center gap-2">
+              <h3 className="font-black text-xl text-gray-900 dark:text-white flex items-center gap-2">
                 <MessageSquare className="text-[#2E7D32]" />
                 Comms Hub
               </h3>
               <Button 
                 onClick={handleBroadcast}
-                className="bg-red-50 text-red-600 hover:bg-red-100 border-none px-3 py-1.5 h-auto text-[10px] font-black uppercase tracking-widest gap-2"
+                className="bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/30 border-none px-3 py-1.5 h-auto text-[10px] font-black uppercase tracking-widest gap-2"
               >
                 <Bell size={14} className="animate-bounce" />
                 Broadcast
               </Button>
             </div>
 
-            <div className="flex bg-gray-100 p-1 rounded-xl mb-4">
+            <div className="flex bg-muted dark:bg-gray-800 p-1 rounded-xl mb-4">
               <button 
                 onClick={() => setActiveTab('farmers')}
-                className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-xs font-bold transition-all ${activeTab === 'farmers' ? 'bg-white text-[#2E7D32] shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+                className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-xs font-bold transition-all ${activeTab === 'farmers' ? 'bg-card text-[#2E7D32] shadow-sm' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'}`}
               >
                 <Users size={14} /> Farmers
               </button>
               <button 
                 onClick={() => setActiveTab('researchers')}
-                className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-xs font-bold transition-all ${activeTab === 'researchers' ? 'bg-white text-[#2E7D32] shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+                className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-xs font-bold transition-all ${activeTab === 'researchers' ? 'bg-card text-[#2E7D32] shadow-sm' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'}`}
               >
                 <UserCog size={14} /> Researchers
               </button>
             </div>
 
             <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4" />
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-500 w-4 h-4" />
               <input 
                 type="text" 
                 placeholder="Search contacts..."
-                className="w-full pl-9 pr-4 py-2.5 bg-gray-50 border border-gray-100 rounded-xl text-xs outline-none focus:border-[#2E7D32] transition-all"
+                className="w-full pl-9 pr-4 py-2.5 bg-muted/50 dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-xl text-xs outline-none focus:border-[#2E7D32] transition-all text-gray-900 dark:text-gray-100"
               />
             </div>
           </div>
 
-          <div className="flex-1 overflow-y-auto p-2 space-y-1 bg-gray-50/50">
+          <div className="flex-1 overflow-y-auto p-2 space-y-1 bg-muted/20 dark:bg-gray-900/20">
             {contacts.map((contact: any) => (
               <div 
                 key={contact.id}
                 onClick={() => setSelectedContact(contact)}
                 className={`p-4 rounded-2xl cursor-pointer transition-all border-2 ${
                   selectedContact?.id === contact.id 
-                    ? 'bg-white border-[#2E7D32] shadow-md' 
-                    : 'border-transparent hover:bg-white hover:border-gray-100'
+                    ? 'bg-card border-[#2E7D32] shadow-md' 
+                    : 'border-transparent hover:bg-card hover:border-gray-100 dark:hover:border-gray-700'
                 }`}
               >
                 <div className="flex justify-between items-start mb-1">
-                  <p className="font-bold text-gray-900 text-sm">{contact.name}</p>
-                  <span className="text-[10px] font-bold text-gray-400">{contact.time}</span>
+                  <p className="font-bold text-gray-900 dark:text-white text-sm">{contact.name}</p>
+                  <span className="text-[10px] font-bold text-gray-400 dark:text-gray-500">{contact.time}</span>
                 </div>
                 <div className="flex items-center justify-between">
                   <p className="text-xs text-gray-500 truncate pr-4 font-medium">{contact.lastMsg}</p>
@@ -200,17 +200,17 @@ export const CommunicationModule = () => {
         </Card>
 
         {/* Right Sidebar: Chat View */}
-        <Card className="col-span-12 md:col-span-8 flex flex-col overflow-hidden border-none shadow-xl bg-white">
+        <Card className="col-span-12 md:col-span-8 flex flex-col overflow-hidden border-none shadow-xl bg-card">
           {selectedContact ? (
             <>
               {/* Chat Header */}
-              <div className="p-6 border-b border-gray-100 flex items-center justify-between bg-white shadow-sm sticky top-0 z-10">
+              <div className="p-6 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between bg-card shadow-sm sticky top-0 z-10">
                 <div className="flex items-center gap-4">
-                  <div className={`w-12 h-12 rounded-2xl flex items-center justify-center font-black text-xl ${activeTab === 'farmers' ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700'}`}>
-                    {selectedContact.name.substring(0, 2)}
-                  </div>
-                  <div>
-                    <h4 className="font-black text-gray-900">{selectedContact.name}</h4>
+                    <div className={`w-12 h-12 rounded-2xl flex items-center justify-center font-black text-xl ${activeTab === 'farmers' ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400' : 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400'}`}>
+                      {selectedContact.name.substring(0, 2)}
+                    </div>
+                    <div>
+                      <h4 className="font-black text-gray-900 dark:text-white">{selectedContact.name}</h4>
                     <div className="flex items-center gap-2">
                       <span className="w-2 h-2 bg-green-500 rounded-full"></span>
                       <p className="text-[11px] font-bold text-gray-400 uppercase tracking-widest">
@@ -220,10 +220,10 @@ export const CommunicationModule = () => {
                   </div>
                 </div>
                 <div className="flex gap-2">
-                  <Button variant="outline" className="p-2 h-auto rounded-xl border-gray-100 text-gray-500 hover:bg-gray-50">
+                  <Button variant="outline" className="p-2 h-auto rounded-xl border-gray-100 dark:border-gray-700 text-gray-500 dark:text-gray-400 hover:bg-muted">
                     <Phone size={18} />
                   </Button>
-                  <Button variant="outline" className="p-2 h-auto rounded-xl border-gray-100 text-gray-500 hover:bg-gray-50">
+                  <Button variant="outline" className="p-2 h-auto rounded-xl border-gray-100 dark:border-gray-700 text-gray-500 dark:text-gray-400 hover:bg-muted">
                     <Mail size={18} />
                   </Button>
                 </div>
@@ -241,8 +241,8 @@ export const CommunicationModule = () => {
                   <div key={msg.id} className={`flex ${msg.sender_type === 'officer' ? 'justify-end' : 'justify-start'}`}>
                     <div className={`max-w-[70%] p-4 rounded-3xl text-sm shadow-sm ${
                       msg.sender_type === 'officer' 
-                        ? 'bg-gray-900 text-white rounded-tr-none' 
-                        : 'bg-white text-gray-800 rounded-tl-none border border-gray-100'
+                        ? 'bg-[#2E7D32] dark:bg-green-700 text-white rounded-tr-none' 
+                        : 'bg-card text-gray-800 dark:text-gray-200 rounded-tl-none border border-gray-100 dark:border-gray-700'
                     }`}>
                       <p className="leading-relaxed font-medium">{msg.text}</p>
                       <div className={`flex items-center gap-1.5 mt-2 ${msg.sender_type === 'officer' ? 'text-gray-400' : 'text-gray-400'}`}>
@@ -256,7 +256,7 @@ export const CommunicationModule = () => {
               </div>
 
               {/* Chat Input */}
-              <div className="p-6 bg-white border-t border-gray-100">
+              <div className="p-6 bg-card border-t border-gray-100 dark:border-gray-700">
                 {!selectedContact.esc_id ? (
                   <div className="flex items-center justify-center p-4 bg-amber-50 rounded-2xl border border-amber-100 gap-3">
                     <AlertTriangle className="text-amber-500" size={20} />
@@ -274,7 +274,7 @@ export const CommunicationModule = () => {
                         onChange={(e) => setNewMessage(e.target.value)}
                         onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()}
                         placeholder="Type your professional response..."
-                        className="w-full pl-6 pr-12 py-4 bg-gray-50 border border-gray-100 rounded-2xl text-sm font-medium outline-none focus:border-[#2E7D32] focus:bg-white transition-all shadow-inner"
+                        className="w-full pl-6 pr-12 py-4 bg-muted border border-gray-100 dark:border-gray-700 rounded-2xl text-sm font-medium outline-none focus:border-[#2E7D32] focus:bg-card transition-all shadow-inner text-gray-900 dark:text-gray-100"
                       />
                       <Button 
                         onClick={handleSendMessage}
@@ -288,12 +288,12 @@ export const CommunicationModule = () => {
               </div>
             </>
           ) : (
-            <div className="flex-1 flex flex-col items-center justify-center text-center p-12 bg-gray-50/30">
-              <div className="w-24 h-24 bg-gray-100 rounded-[2.5rem] flex items-center justify-center mb-6 text-gray-400 shadow-inner">
+            <div className="flex-1 flex flex-col items-center justify-center text-center p-12 bg-muted/30">
+              <div className="w-24 h-24 bg-muted rounded-[2.5rem] flex items-center justify-center mb-6 text-gray-400 shadow-inner">
                 <MessageSquare size={48} strokeWidth={1.5} />
               </div>
-              <h3 className="text-xl font-black text-gray-900 mb-2">Regional Communication Hub</h3>
-              <p className="text-sm text-gray-500 max-w-sm font-medium">
+              <h3 className="text-xl font-black text-gray-900 dark:text-white mb-2">Regional Communication Hub</h3>
+              <p className="text-sm text-gray-500 dark:text-gray-400 max-w-sm font-medium">
                 Select a farmer or researcher from the list to begin a secure consultation or provide diagnostic feedback.
               </p>
             </div>
