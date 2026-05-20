@@ -3,8 +3,10 @@ import { Card } from './ui/card';
 import { Button } from './ui/button';
 import { ShieldAlert, User, MapPin, Phone, MessageSquare, History, CheckCircle2, AlertTriangle, Send, Search, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
+import { useTranslation } from '../utils/translations';
 
 export const EscalationModule = () => {
+  const { t, currentLanguage } = useTranslation();
   const [activeStep, setActiveStep] = useState(1);
   const [selectedScan, setSelectedScan] = useState<any>(null);
   const [selectedOfficer, setSelectedOfficer] = useState<any>(null);
@@ -61,7 +63,7 @@ export const EscalationModule = () => {
 
   const handleSubmit = async () => {
     if (!selectedScan || !selectedOfficer) {
-      toast.error("Please complete all steps first");
+      toast.error(t('completeAllStepsFirst'));
       return;
     }
     
@@ -88,10 +90,10 @@ export const EscalationModule = () => {
         setSelectedScan(null);
         setSelectedOfficer(null);
         setNotes('');
-        toast.success("Case successfully escalated to Agri Officer");
+        toast.success(t('caseSuccessEscalated'));
       }
     } catch (err) {
-      toast.error("Failed to submit escalation");
+      toast.error(t('failedSubmitEscalation'));
     } finally {
       setIsSubmitting(false);
     }
@@ -132,7 +134,7 @@ export const EscalationModule = () => {
         handleOpenChat(activeChat);
       }
     } catch (err) {
-      toast.error("Failed to send message");
+      toast.error(t('failedSendMessage'));
     }
   };
 
@@ -143,9 +145,9 @@ export const EscalationModule = () => {
           <div>
             <h3 className="font-semibold text-gray-900 dark:text-white text-xl flex items-center gap-2">
               <ShieldAlert className="text-red-600" />
-              Expert Consultation
+              {t('expertConsultation')}
             </h3>
-            <p className="text-sm text-gray-500 dark:text-gray-400">කෘෂිකර්ම විශේෂඥයෙකුගේ සහාය ලබා ගැනීම</p>
+            <p className="text-sm text-gray-500 dark:text-gray-400">{t('expertConsultationSub')}</p>
           </div>
           <div className="flex gap-2">
             {[1, 2, 3].map((step) => (
@@ -173,7 +175,7 @@ export const EscalationModule = () => {
           <div className={`space-y-4 transition-all duration-300 ${activeStep !== 1 ? 'opacity-40 grayscale pointer-events-none' : ''}`}>
             <h4 className="font-bold text-gray-900 dark:text-white flex items-center gap-2">
               <History size={18} className="text-[#2E7D32]" />
-              1. Select Problem Case
+              1. {t('selectProblemCase')}
             </h4>
             <div className="space-y-3 max-h-[480px] overflow-y-auto pr-2 custom-scrollbar">
               {recentScans.map((scan) => (
@@ -191,9 +193,9 @@ export const EscalationModule = () => {
                       (scan.prediction?.confidence || 0) >= 0.5 ? 'bg-amber-100 text-amber-700' :
                       'bg-red-100 text-red-700'
                     }`}>
-                      {(scan.prediction?.confidence || 0) >= 0.8 ? 'HIGH CONFIDENCE' :
-                       (scan.prediction?.confidence || 0) >= 0.5 ? 'MODERATE CONFIDENCE' :
-                       'LOW CONFIDENCE'}
+                      {(scan.prediction?.confidence || 0) >= 0.8 ? t('highConfidence') :
+                       (scan.prediction?.confidence || 0) >= 0.5 ? t('moderateConfidence') :
+                       t('lowConfidence')}
                     </span>
                   </div>
                   <p className="font-bold text-gray-900 dark:text-white text-sm">{scan.prediction?.disease_name || 'Processing...'}</p>
@@ -207,14 +209,14 @@ export const EscalationModule = () => {
           <div className={`space-y-4 transition-all duration-300 ${activeStep !== 2 ? 'opacity-40 grayscale pointer-events-none' : ''}`}>
             <h4 className="font-bold text-gray-900 dark:text-white flex items-center gap-2">
               <User size={18} className="text-[#2E7D32]" />
-              2. Choose an Expert
+              2. {t('chooseAnExpert')}
             </h4>
             <div className="space-y-3 max-h-[480px] overflow-y-auto pr-2 custom-scrollbar">
               <div className="relative mb-4">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4" />
                 <input 
                   type="text" 
-                  placeholder="Filter officers..."
+                  placeholder={t('filterOfficersPlaceholder')}
                   className="w-full pl-9 pr-4 py-2 border border-gray-200 dark:border-gray-700 bg-background rounded-lg text-xs outline-none focus:border-[#2E7D32] text-gray-900 dark:text-gray-100"
                 />
               </div>
@@ -232,7 +234,7 @@ export const EscalationModule = () => {
                     <div className="flex justify-between items-center mb-1">
                       <p className="font-bold text-gray-900 dark:text-white text-sm">{officer.name}</p>
                       <span className={`text-[10px] font-bold ${officer.is_available ? 'text-green-600' : 'text-gray-400'}`}>
-                        {officer.is_available ? 'Available' : 'Unavailable'}
+                        {officer.is_available ? t('available') : t('unavailable')}
                       </span>
                     </div>
                     <div className="flex items-center gap-2 text-[10px] text-gray-500">
@@ -243,8 +245,8 @@ export const EscalationModule = () => {
               ) : (
                   <div className="flex flex-col items-center justify-center py-8 text-center text-gray-400 border-2 border-dashed border-gray-100 dark:border-gray-800 rounded-2xl">
                   <User size={32} className="mb-2 opacity-20" />
-                  <p className="text-xs font-bold">No officers found in your area.</p>
-                  <p className="text-[10px]">Please try again later or contact support.</p>
+                  <p className="text-xs font-bold">{t('noOfficersFound')}</p>
+                  <p className="text-[10px]">{t('tryAgainLater')}</p>
                 </div>
               )}
             </div>
@@ -254,27 +256,27 @@ export const EscalationModule = () => {
           <div className={`space-y-4 transition-all duration-300 ${activeStep !== 3 ? 'opacity-40 grayscale pointer-events-none' : ''}`}>
             <h4 className="font-bold text-gray-900 dark:text-white flex items-center gap-2">
               <MessageSquare size={18} className="text-[#2E7D32]" />
-              3. Finalize & Send
+              3. {t('finalizeAndSend')}
             </h4>
             <div className="space-y-4">
               <div className="bg-muted p-4 rounded-xl border border-gray-200 dark:border-gray-700">
-                <p className="text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest mb-2">Escalation Summary</p>
+                <p className="text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest mb-2">{t('escalationSummary')}</p>
                 <div className="space-y-1">
                   <p className="text-xs font-bold text-gray-900 dark:text-gray-100 flex items-center justify-between">
-                    <span>Case:</span> <span className="text-[#2E7D32]">{selectedScan?.request_uuid?.substring(0, 8)}</span>
+                    <span>{t('caseLabel')}</span> <span className="text-[#2E7D32]">{selectedScan?.request_uuid?.substring(0, 8)}</span>
                   </p>
                   <p className="text-xs font-bold text-gray-900 dark:text-gray-100 flex items-center justify-between">
-                    <span>Officer:</span> <span className="text-[#2E7D32]">{selectedOfficer?.name}</span>
+                    <span>{t('officerLabel')}</span> <span className="text-[#2E7D32]">{selectedOfficer?.name}</span>
                   </p>
                 </div>
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Additional Notes (Optional)</label>
+                <label className="block text-xs font-bold text-gray-500 uppercase mb-2">{t('additionalNotes')}</label>
                 <textarea 
                   value={notes}
                   onChange={(e) => setNotes(e.target.value)}
-                  placeholder="E.g., Spread observed in Plot B, organic treatment failed..."
+                  placeholder={t('notesPlaceholder')}
                   className="w-full px-4 py-3 border border-gray-200 dark:border-gray-700 bg-background rounded-xl text-sm min-h-[120px] outline-none focus:border-[#2E7D32] text-gray-900 dark:text-gray-100"
                 />
               </div>
@@ -286,7 +288,7 @@ export const EscalationModule = () => {
                   className="w-full bg-red-600 hover:bg-red-700 text-white gap-2 font-bold py-6 text-lg shadow-lg hover:shadow-red-200 transition-all"
                 >
                   {isSubmitting ? <Loader2 className="animate-spin" size={18} /> : <Send size={18} />}
-                  Escalate Now
+                  {t('escalateNow')}
                 </Button>
               </div>
             </div>
@@ -299,19 +301,19 @@ export const EscalationModule = () => {
         <div className="flex items-center justify-between mb-6">
           <h4 className="font-bold text-gray-900 dark:text-white flex items-center gap-2">
             <History className="text-[#2E7D32]" />
-            Active Escalations
+            {t('activeEscalations')}
           </h4>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm text-left">
             <thead className="bg-gray-50 dark:bg-gray-800/50 text-gray-600 dark:text-gray-400">
               <tr>
-                <th className="px-4 py-3 font-semibold">Request ID</th>
-                <th className="px-4 py-3 font-semibold">Officer Name</th>
-                <th className="px-4 py-3 font-semibold">Case ID</th>
-                <th className="px-4 py-3 font-semibold">Status</th>
-                <th className="px-4 py-3 font-semibold">Date Sent</th>
-                <th className="px-4 py-3 font-semibold text-right">Actions</th>
+                <th className="px-4 py-3 font-semibold">{t('requestId')}</th>
+                <th className="px-4 py-3 font-semibold">{t('officerName')}</th>
+                <th className="px-4 py-3 font-semibold">{t('caseId')}</th>
+                <th className="px-4 py-3 font-semibold">{t('statusLabel')}</th>
+                <th className="px-4 py-3 font-semibold">{t('dateSent')}</th>
+                <th className="px-4 py-3 font-semibold text-right">{t('actionsLabel')}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
@@ -339,7 +341,7 @@ export const EscalationModule = () => {
                           className="text-[#2E7D32] dark:text-green-400 border-[#2E7D32] dark:border-green-800 hover:bg-green-50 dark:hover:bg-green-950/30 gap-2"
                         >
                           <MessageSquare size={14} />
-                          Chat
+                          {t('chatLabel')}
                         </Button>
                       </td>
                     </tr>
@@ -350,7 +352,7 @@ export const EscalationModule = () => {
                             <div className="flex-1 space-y-2">
                               <div className="flex items-center gap-2">
                                 <CheckCircle2 size={16} className="text-[#2E7D32] dark:text-green-400" />
-                                <span className="text-xs font-black text-[#2E7D32] dark:text-green-400 uppercase tracking-wider">Expert Decision</span>
+                                <span className="text-xs font-black text-[#2E7D32] dark:text-green-400 uppercase tracking-wider">{t('expertDecision')}</span>
                               </div>
                               {req.final_conclusion && (
                                 <p className="text-sm font-bold text-gray-900 dark:text-white leading-snug">
@@ -359,12 +361,12 @@ export const EscalationModule = () => {
                               )}
                               {req.officer_comments && (
                                 <p className="text-xs text-gray-600 dark:text-gray-400 italic">
-                                  Expert Notes: "{req.officer_comments}"
+                                  {t('expertNotes')} "{req.officer_comments}"
                                 </p>
                               )}
                             </div>
                             <div className="text-[10px] text-[#2E7D32] dark:text-green-400 font-bold bg-white dark:bg-gray-800 px-3 py-1 rounded-full border border-[#2E7D32]/20 dark:border-green-800/40">
-                              Official Resolution
+                              {t('officialResolution')}
                             </div>
                           </div>
                         </td>
@@ -377,8 +379,8 @@ export const EscalationModule = () => {
                   <td colSpan={6} className="px-4 py-12 text-center text-gray-400 dark:text-gray-500">
                     <div className="flex flex-col items-center gap-2">
                       <History size={32} className="opacity-20" />
-                      <p className="font-bold text-gray-900 dark:text-white">No active escalations</p>
-                      <p className="text-xs text-gray-500 dark:text-gray-400">Escalate a problem scan to get expert advice.</p>
+                      <p className="font-bold text-gray-900 dark:text-white">{t('noActiveEscalations')}</p>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">{t('escalateScanInstruction')}</p>
                     </div>
                   </td>
                 </tr>
@@ -401,7 +403,7 @@ export const EscalationModule = () => {
                 </div>
                 <div>
                   <p className="font-bold text-sm">{activeChat.officer_name}</p>
-                  <p className="text-[10px] opacity-80 uppercase tracking-tighter">Case: {activeChat.scan_id?.substring(0, 8)}</p>
+                  <p className="text-[10px] opacity-80 uppercase tracking-tighter">{t('caseLabel')} {activeChat.scan_id?.substring(0, 8)}</p>
                 </div>
               </div>
               <Button variant="ghost" onClick={() => setActiveChat(null)} className="text-white hover:bg-white/10">
@@ -413,7 +415,7 @@ export const EscalationModule = () => {
             <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-muted/50">
               <div className="text-center mb-6">
                 <span className="text-[10px] font-bold text-gray-400 dark:text-gray-500 bg-card px-3 py-1 rounded-full border border-gray-100 dark:border-gray-800 uppercase tracking-widest">
-                  Secure Consultation Channel
+                  {t('secureConsultationChannel')}
                 </span>
               </div>
               
@@ -441,7 +443,7 @@ export const EscalationModule = () => {
                   value={newMessage}
                   onChange={(e) => setNewMessage(e.target.value)}
                   onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()}
-                  placeholder="Type your message..."
+                  placeholder={t('typeMessagePlaceholder')}
                   className="flex-1 px-4 py-2 bg-muted border border-gray-200 dark:border-gray-700 rounded-full text-sm outline-none focus:border-[#2E7D32] transition-all text-gray-900 dark:text-gray-100"
                 />
                 <Button 
@@ -452,7 +454,7 @@ export const EscalationModule = () => {
                 </Button>
               </div>
               <p className="text-[10px] text-gray-400 text-center mt-2">
-                Agricultural Officers usually reply within 2-4 hours.
+                {t('officerReplyDisclaimer')}
               </p>
             </div>
           </div>
