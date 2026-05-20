@@ -20,6 +20,7 @@ import { CommunicationModule } from './components/CommunicationModule';
 import { OfficerEscalationTable } from './components/OfficerEscalationTable';
 import { AITrainingCenter } from './components/AITrainingCenter';
 import { toast } from 'sonner';
+import { useTranslation } from './utils/translations';
 
 const LiveClock = () => {
   const [time, setTime] = useState(new Date());
@@ -39,6 +40,7 @@ const LiveClock = () => {
 };
 
 export default function App() {
+  const { t } = useTranslation();
   // Initialize authentication from localStorage so it persists across refreshes
   const [isAuthenticated, setIsAuthenticated] = useState(() => {
     return !!localStorage.getItem('access_token');
@@ -256,24 +258,24 @@ export default function App() {
             <div className="flex items-center justify-between">
               <div>
                 <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
-                  {activeSection === 'dashboard' && (userData?.role?.toLowerCase()?.includes('officer') ? 'Officer Dashboard' : isAdmin ? 'Admin Dashboard' : 'Analytics Dashboard')}
-                  {activeSection === 'satellite' && 'Satellite Monitoring'}
-                  {activeSection === 'diagnosis' && 'AI Disease Diagnosis'}
-                  {activeSection === 'data' && 'Data Management'}
-                  {activeSection === 'communications' && 'Communications Hub'}
-                  {activeSection === 'expert-review' && 'Expert Review Queue'}
-                  {activeSection === 'ai-training' && !userData?.role?.toLowerCase()?.includes('officer') && 'AI Training Center'}
-                  {activeSection === 'settings' && 'Settings'}
+                  {activeSection === 'dashboard' && (userData?.role?.toLowerCase()?.includes('officer') ? 'Officer Dashboard' : isAdmin ? 'Admin Dashboard' : t('dashboard'))}
+                  {activeSection === 'satellite' && t('satellite')}
+                  {activeSection === 'diagnosis' && t('diagnosis')}
+                  {activeSection === 'data' && t('data')}
+                  {activeSection === 'communications' && t('communications')}
+                  {activeSection === 'expert-review' && t('expertReview')}
+                  {activeSection === 'ai-training' && !userData?.role?.toLowerCase()?.includes('officer') && t('aiTraining')}
+                  {activeSection === 'settings' && t('systemSettings')}
                 </h2>
                 <p className="text-sm text-gray-500">
-                  {activeSection === 'dashboard' && (userData?.role?.toLowerCase()?.includes('officer') ? 'නිලධාරි උපකරණ පුවරුව' : isAdmin ? 'පරිපාලක උපකරණ පුවරුව' : 'විශ්ලේෂණ උපකරණ පුවරුව')}
-                  {activeSection === 'satellite' && 'චන්ද්‍රිකා අධීක්ෂණය'}
-                  {activeSection === 'diagnosis' && 'AI රෝග විනිශ්චය'}
-                  {activeSection === 'data' && 'දත්ත කළමනාකරණය'}
-                  {activeSection === 'communications' && 'සන්නිවේදන කේන්ද්‍රය'}
-                  {activeSection === 'expert-review' && 'විශේෂඥ සමාලෝචන පෝලිම'}
-                  {activeSection === 'ai-training' && !userData?.role?.toLowerCase()?.includes('officer') && 'AI පුහුණු මධ්‍යස්ථානය'}
-                  {activeSection === 'settings' && 'සැකසීම්'}
+                  {activeSection === 'dashboard' && (userData?.role?.toLowerCase()?.includes('officer') ? 'නිලධාරි උපකරණ පුවරුව' : isAdmin ? 'පරිපාලක උපකරණ පුවරුව' : t('dashboardSubtitle'))}
+                  {activeSection === 'satellite' && t('satelliteSubtitle')}
+                  {activeSection === 'diagnosis' && t('diagnosisSubtitle')}
+                  {activeSection === 'data' && t('dataSubtitle')}
+                  {activeSection === 'communications' && t('communicationsSubtitle')}
+                  {activeSection === 'expert-review' && t('expertReviewSubtitle')}
+                  {activeSection === 'ai-training' && !userData?.role?.toLowerCase()?.includes('officer') && t('aiTrainingSubtitle')}
+                  {activeSection === 'settings' && t('settingsSubtitle')}
                 </p>
               </div>
               <div className="flex items-center gap-6">

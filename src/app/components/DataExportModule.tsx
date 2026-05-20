@@ -2,8 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { Card } from './ui/card';
 import { Button } from './ui/button';
 import { Download, FileText, Calendar, Filter, Database, FileSpreadsheet, CheckCircle2, Loader2, History, Trash2 } from 'lucide-react';
+import { useTranslation } from '../utils/translations';
 
 export const DataExportModule = ({ userData }: { userData: any }) => {
+  const { t, currentLanguage } = useTranslation();
   const role = userData?.role?.toLowerCase() || 'farmer';
   const isOfficer = role.includes('officer');
   const isResearcher = role.includes('researcher');
@@ -57,8 +59,11 @@ export const DataExportModule = ({ userData }: { userData: any }) => {
   const fetchTrendsPreview = async () => {
     try {
       const token = localStorage.getItem('access_token') || localStorage.getItem('token');
-      const response = await fetch("http://127.0.0.1:8000/api/management/exports/trends-preview/", {
-        headers: { 'Authorization': `Bearer ${token}` }
+      const response = await fetch(`http://127.0.0.1:8000/api/management/exports/trends-preview/?lang=${currentLanguage}`, {
+        headers: { 
+          'Authorization': `Bearer ${token}`,
+          'Accept-Language': currentLanguage
+        }
       });
       if (response.ok) {
         const data = await response.json();
@@ -74,7 +79,7 @@ export const DataExportModule = ({ userData }: { userData: any }) => {
     if (!isOfficer && !isResearcher) {
       fetchTrendsPreview();
     }
-  }, [role]);
+  }, [role, currentLanguage]);
 
   useEffect(() => {
     const totalPages = Math.ceil(exportHistory.length / itemsPerPage);
@@ -133,26 +138,26 @@ export const DataExportModule = ({ userData }: { userData: any }) => {
   const getDataTypes = () => {
     if (isOfficer) {
       return [
-        { id: 'escalations', label: 'Escalation Logs' },
-        { id: 'reviews', label: 'Expert Reviews' },
-        { id: 'regional', label: 'Regional Analytics' },
-        { id: 'disease', label: 'Disease Distribution' }
+        { id: 'escalations', label: t('officerActions') },
+        { id: 'reviews', label: t('expertReview') },
+        { id: 'regional', label: t('regionalAnalytics') },
+        { id: 'disease', label: t('diseaseDetections') }
       ];
     }
     if (isResearcher) {
       return [
-        { id: 'global', label: 'Global Disease Data' },
-        { id: 'anonymized', label: 'Anonymized Scans' },
-        { id: 'outbreaks', label: 'Outbreak History' },
-        { id: 'trends', label: 'Migration Trends' }
+        { id: 'global', label: t('allFarmData') },
+        { id: 'anonymized', label: t('anonymizedScans') },
+        { id: 'outbreaks', label: t('outbreakHistory') },
+        { id: 'trends', label: t('migrationTrends') }
       ];
     }
     // Farmer
     return [
-      { id: 'all', label: 'All Farm Data' },
-      { id: 'disease', label: 'My Disease Scans' },
-      { id: 'satellite', label: 'My Satellite Data' },
-      { id: 'yield', label: 'My Yield Predictions' }
+      { id: 'all', label: t('allFarmData') },
+      { id: 'disease', label: t('diseaseDetections') },
+      { id: 'satellite', label: t('satelliteScans') },
+      { id: 'yield', label: t('yieldPredictions') }
     ];
   };
 
@@ -171,10 +176,10 @@ export const DataExportModule = ({ userData }: { userData: any }) => {
       <div className="flex items-center justify-between mb-6">
         <div>
           <h3 className="font-semibold text-gray-900 dark:text-white">
-            {isOfficer ? 'Administrative Data Export' : isResearcher ? 'Research Data Center' : 'Farm Data Export Center'}
+            {isOfficer ? t('adminDataExport') : isResearcher ? t('researchDataCenter') : t('data')}
           </h3>
           <p className="text-sm text-gray-500 dark:text-gray-400">
-            {isOfficer ? 'නිලධාරි දත්ත අපනයනය' : isResearcher ? 'පර්යේෂණ දත්ත මධ්‍යස්ථානය' : 'ගොවිපල දත්ත අපනයන මධ්‍යස්ථානය'}
+            {t('dataSubtitle')}
           </p>
         </div>
         <Database className="w-8 h-8 text-[#2E7D32]" />
@@ -187,8 +192,8 @@ export const DataExportModule = ({ userData }: { userData: any }) => {
             <div className="flex items-center gap-3">
               <span className="text-2xl">📊</span>
               <div>
-                <h4 className="text-sm font-bold text-gray-900 dark:text-white uppercase tracking-wider">AI Crop Disease Trends & Advisory Panel</h4>
-                <p className="text-[10px] text-gray-500">ලෙඩ රෝග ප්‍රවණතා විශ්ලේෂණය සහ ක්ෂේත්‍ර අනතුරු ඇඟවීම්</p>
+                <h4 className="text-sm font-bold text-gray-900 dark:text-white uppercase tracking-wider">{t('diseaseTrendsTitle')}</h4>
+                <p className="text-[10px] text-gray-500">{t('diseaseTrendsSub')}</p>
               </div>
             </div>
             <div className="flex items-center gap-2">
@@ -196,14 +201,14 @@ export const DataExportModule = ({ userData }: { userData: any }) => {
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
                 <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500"></span>
               </span>
-              <span className="text-[10px] font-bold text-amber-800 dark:text-amber-400 uppercase tracking-wider">Real-time Advisory Active</span>
+              <span className="text-[10px] font-bold text-amber-800 dark:text-amber-400 uppercase tracking-wider">{t('realtimeAdvisoryActive')}</span>
             </div>
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             {/* Column 1: Dynamic Warnings */}
             <div className="space-y-3">
-              <h5 className="text-[11px] font-bold text-gray-400 uppercase tracking-tight">Dynamic Warnings & Alerts</h5>
+              <h5 className="text-[11px] font-bold text-gray-400 uppercase tracking-tight">{t('dynamicWarningsAlerts')}</h5>
               <div className="space-y-2">
                 {trendsData?.warnings && trendsData.warnings.length > 0 ? (
                   trendsData.warnings.map((wrn, i) => (
@@ -227,7 +232,7 @@ export const DataExportModule = ({ userData }: { userData: any }) => {
                   ))
                 ) : (
                   <div className="p-3 rounded-lg bg-gray-500/10 border border-gray-500/20 text-gray-500 text-[11px]">
-                    No active disease outbreak trends calculated.
+                    {t('noTrendsCalculated')}
                   </div>
                 )}
               </div>
@@ -235,7 +240,7 @@ export const DataExportModule = ({ userData }: { userData: any }) => {
 
             {/* Column 2: Disease Statistics Graph */}
             <div className="space-y-3">
-              <h5 className="text-[11px] font-bold text-gray-400 uppercase tracking-tight">Active Disease Distribution</h5>
+              <h5 className="text-[11px] font-bold text-gray-400 uppercase tracking-tight">{t('activeDiseaseDistribution')}</h5>
               <div className="space-y-2">
                 <div className="h-3 w-full bg-gray-200 dark:bg-gray-800 rounded-full overflow-hidden flex">
                   <div 
@@ -282,9 +287,9 @@ export const DataExportModule = ({ userData }: { userData: any }) => {
             {/* Column 3: Export Advisory PDF/Excel */}
             <div className="flex flex-col justify-between border-t lg:border-t-0 lg:border-l border-amber-100 dark:border-amber-900/20 pt-4 lg:pt-0 lg:pl-6 space-y-3">
               <div>
-                <h5 className="text-[11px] font-bold text-gray-400 uppercase tracking-tight">Advisory Document Generation</h5>
+                <h5 className="text-[11px] font-bold text-gray-400 uppercase tracking-tight">{t('advisoryDocGen')}</h5>
                 <p className="text-xs text-gray-600 dark:text-gray-400 mt-1 mb-2">
-                  Select a document format to export your custom AI advisory findings.
+                  {t('advisoryDocGenSub')}
                 </p>
                 {/* File Type Selection */}
                 <div className="flex gap-2 mb-2">
@@ -338,7 +343,7 @@ export const DataExportModule = ({ userData }: { userData: any }) => {
                 disabled={isExporting}
                 className="w-full flex items-center justify-center gap-2 py-3 rounded-lg bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold transition-all shadow-sm hover:shadow disabled:opacity-50"
               >
-                <Download size={14} /> Download {trendsFormat.toUpperCase()} Advisory Report
+                <Download size={14} /> {t('downloadAdvisoryReport')} ({trendsFormat.toUpperCase()})
               </button>
             </div>
           </div>
@@ -352,7 +357,7 @@ export const DataExportModule = ({ userData }: { userData: any }) => {
           <div>
             <div className="flex items-center justify-between mb-3">
               <h4 className="text-sm font-bold text-gray-700 dark:text-gray-300 flex items-center gap-2">
-                <Filter size={16} className="text-[#2E7D32]" /> 1. Select Categories
+                <Filter size={16} className="text-[#2E7D32]" /> {t('selectCategories')}
               </h4>
               <button 
                 onClick={() => {
@@ -364,7 +369,7 @@ export const DataExportModule = ({ userData }: { userData: any }) => {
                 }}
                 className="text-[10px] font-bold text-[#2E7D32] hover:underline uppercase"
               >
-                {selectedDataTypes.length === dataTypes.length ? 'Reset' : 'Select All'}
+                {selectedDataTypes.length === dataTypes.length ? t('reset') : t('selectAll')}
               </button>
             </div>
             <div className="grid grid-cols-2 gap-3">
@@ -387,14 +392,14 @@ export const DataExportModule = ({ userData }: { userData: any }) => {
           {/* Date Range */}
           <div>
             <h4 className="text-sm font-bold text-gray-700 dark:text-gray-300 mb-3 flex items-center gap-2">
-              <Calendar size={16} className="text-[#2E7D32]" /> 2. Date Filter
+              <Calendar size={16} className="text-[#2E7D32]" /> {t('selectDateRange')}
             </h4>
             <div className="grid grid-cols-2 gap-3">
               {[
-                { id: '7days', label: 'Last 7 Days' },
-                { id: '30days', label: 'Last 30 Days' },
-                { id: 'thisYear', label: 'Current Year' },
-                { id: 'custom', label: 'Custom Range' }
+                { id: '7days', label: t('last7Days') },
+                { id: '30days', label: t('last30Days') },
+                { id: 'thisYear', label: t('thisYear') },
+                { id: 'custom', label: t('customRange') }
               ].map((range) => (
                 <button
                   key={range.id}
@@ -414,7 +419,7 @@ export const DataExportModule = ({ userData }: { userData: any }) => {
           {/* Formats */}
           <div>
             <h4 className="text-sm font-bold text-gray-700 dark:text-gray-300 mb-3 flex items-center gap-2">
-              <Download size={16} className="text-[#2E7D32]" /> 3. Export Format
+              <Download size={16} className="text-[#2E7D32]" /> {t('selectFormat')}
             </h4>
             <div className="flex gap-4">
               {[
@@ -445,14 +450,14 @@ export const DataExportModule = ({ userData }: { userData: any }) => {
           >
             {isExporting ? (
               <span className="flex items-center gap-2">
-                <Loader2 className="w-5 h-5 animate-spin" /> Generating...
+                <Loader2 className="w-5 h-5 animate-spin" /> {t('generatingLabel')}
               </span>
             ) : exportSuccess ? (
               <span className="flex items-center gap-2">
-                <CheckCircle2 className="w-5 h-5" /> Export Successful
+                <CheckCircle2 className="w-5 h-5" /> {t('exportSuccessLabel')}
               </span>
             ) : (
-              "Generate Export File"
+              t('generateExportFile')
             )}
           </Button>
         </div>
@@ -461,7 +466,7 @@ export const DataExportModule = ({ userData }: { userData: any }) => {
         <div className="flex flex-col">
           <div className="flex items-center gap-2 mb-4">
             <History className="w-5 h-5 text-gray-500 dark:text-gray-400" />
-            <h4 className="font-bold text-gray-800 dark:text-white">Export History</h4>
+            <h4 className="font-bold text-gray-800 dark:text-white">{t('exportHistoryTitle')}</h4>
           </div>
 
           <div className="bg-muted/50 dark:bg-gray-900/50 border-2 border-dashed border-gray-200 dark:border-gray-700 rounded-lg p-4 flex-1">
@@ -490,7 +495,7 @@ export const DataExportModule = ({ userData }: { userData: any }) => {
                   {paginatedHistory.length === 0 ? (
                     <div className="text-center py-10">
                       <Database className="w-10 h-10 text-gray-300 dark:text-gray-600 mx-auto mb-2 opacity-50" />
-                      <p className="text-sm text-gray-500 dark:text-gray-400">No export history found</p>
+                      <p className="text-sm text-gray-500 dark:text-gray-400">{t('noExportHistory')}</p>
                     </div>
                   ) : (
                     <>
@@ -521,12 +526,12 @@ export const DataExportModule = ({ userData }: { userData: any }) => {
                                   target="_blank" 
                                   rel="noopener noreferrer"
                                   className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded text-gray-500 dark:text-gray-400 transition-colors" 
-                                  title="Download"
+                                  title={t('download')}
                                 >
                                   <Download size={14} />
                                 </a>
                               )}
-                              <button onClick={() => deleteHistoryItem(item.id)} className="p-1 hover:bg-red-50 dark:hover:bg-red-900/30 rounded text-red-500 dark:text-red-400 transition-colors" title="Delete">
+                              <button onClick={() => deleteHistoryItem(item.id)} className="p-1 hover:bg-red-50 dark:hover:bg-red-900/30 rounded text-red-500 dark:text-red-400 transition-colors" title={t('delete')}>
                                 <Trash2 size={14} />
                               </button>
                             </div>
@@ -537,7 +542,13 @@ export const DataExportModule = ({ userData }: { userData: any }) => {
                       {totalPages > 1 && (
                         <div className="flex items-center justify-between mt-4 pt-3 border-t border-gray-150 dark:border-gray-800">
                           <p className="text-[10px] font-medium text-gray-500 dark:text-gray-400">
-                            Showing {Math.min(exportHistory.length, (currentPage - 1) * itemsPerPage + 1)}-{Math.min(exportHistory.length, currentPage * itemsPerPage)} of {exportHistory.length} files
+                            {currentLanguage === 'si' ? (
+                              `ගොනු ${exportHistory.length} කින් ${Math.min(exportHistory.length, (currentPage - 1) * itemsPerPage + 1)}-${Math.min(exportHistory.length, currentPage * itemsPerPage)} දක්වා පෙන්වයි`
+                            ) : currentLanguage === 'ta' ? (
+                              `கோப்புகள் ${exportHistory.length} இல் ${Math.min(exportHistory.length, (currentPage - 1) * itemsPerPage + 1)}-${Math.min(exportHistory.length, currentPage * itemsPerPage)} காட்டப்படுகிறது`
+                            ) : (
+                              `Showing ${Math.min(exportHistory.length, (currentPage - 1) * itemsPerPage + 1)}-${Math.min(exportHistory.length, currentPage * itemsPerPage)} of ${exportHistory.length} files`
+                            )}
                           </p>
                           <div className="flex items-center gap-1">
                             <button
@@ -545,7 +556,7 @@ export const DataExportModule = ({ userData }: { userData: any }) => {
                               disabled={currentPage === 1}
                               className="px-2.5 py-1 rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-[10px] font-bold text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-40 disabled:cursor-not-allowed transition-all cursor-pointer"
                             >
-                              Prev
+                              {t('prev')}
                             </button>
                             {getPageNumbers().map((pageNum, idx) => {
                               if (pageNum === '...') {
@@ -574,7 +585,7 @@ export const DataExportModule = ({ userData }: { userData: any }) => {
                               disabled={currentPage === totalPages}
                               className="px-2.5 py-1 rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-[10px] font-bold text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-40 disabled:cursor-not-allowed transition-all cursor-pointer"
                             >
-                              Next
+                              {t('next')}
                             </button>
                           </div>
                         </div>
@@ -589,7 +600,7 @@ export const DataExportModule = ({ userData }: { userData: any }) => {
           <div className="mt-4 p-3 bg-blue-50/50 dark:bg-blue-900/10 rounded-lg border border-blue-100 dark:border-blue-900/30 flex items-center gap-2">
             <div className="w-2 h-2 bg-blue-500 rounded-full animate-ping"></div>
             <p className="text-[10px] font-bold text-blue-800 dark:text-blue-400 uppercase tracking-tight">
-              Cloud Storage: 84% Free • Auto-Cleanup: Enabled
+              {t('cloudStorageStatus')}
             </p>
           </div>
         </div>

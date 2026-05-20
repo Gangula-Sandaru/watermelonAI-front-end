@@ -1,4 +1,5 @@
 import { LayoutDashboard, Satellite, Brain, Settings, FileText, MapPin, LogOut, ShieldAlert, MessageSquare, Database, ShieldCheck } from 'lucide-react';
+import { useTranslation } from '../utils/translations';
 
 interface SidebarProps {
   activeSection: string;
@@ -8,20 +9,21 @@ interface SidebarProps {
 }
 
 export function Sidebar({ activeSection, setActiveSection, onLogout, userData }: SidebarProps) {
+  const { t } = useTranslation();
   const role = userData?.role?.toLowerCase();
   const isOfficer = role?.includes('officer');
   const isAdmin = role === 'admin' || role === 'superadmin' || (userData as any)?.is_superuser === true;
   const effectiveRole = isAdmin ? 'admin' : (isOfficer ? 'officer' : 'farmer');
 
   const menuItems = [
-    { id: 'dashboard', icon: LayoutDashboard, label: isAdmin ? 'Admin Dashboard' : 'Dashboard', labelSi: isAdmin ? 'පරිපාලක පුවරුව' : 'උපකරණ පුවරුව', roles: ['farmer', 'officer', 'admin'] },
-    { id: 'satellite', icon: Satellite, label: 'Satellite View', labelSi: 'චන්ද්‍රිකා දර්ශනය', roles: ['farmer', 'researcher'] },
-    { id: 'diagnosis', icon: Brain, label: 'AI Diagnosis', labelSi: 'AI රෝග විනිශ්චය', roles: ['farmer'] },
-    { id: 'expert-review', icon: ShieldAlert, label: 'Expert Review', labelSi: 'විශේෂඥ සමාලෝචනය', roles: ['officer'] },
-    { id: 'ai-training', icon: Database, label: 'AI Feedback Loop', labelSi: 'AI ප්‍රතිපෝෂණ', roles: ['researcher', 'admin'] },
-    { id: 'escalate', icon: ShieldAlert, label: 'Escalate', labelSi: 'නිලධාරියාට යොමු කරන්න', roles: ['farmer'] },
-    { id: 'data', icon: FileText, label: 'Data Management', labelSi: 'දත්ත කළමනාකරණය', roles: ['farmer', 'officer', 'researcher'] },
-    { id: 'settings', icon: Settings, label: 'Settings', labelSi: 'සැකසීම්', roles: ['farmer', 'officer', 'researcher', 'admin'] },
+    { id: 'dashboard', icon: LayoutDashboard, roles: ['farmer', 'officer', 'admin'] },
+    { id: 'satellite', icon: Satellite, roles: ['farmer', 'researcher'] },
+    { id: 'diagnosis', icon: Brain, roles: ['farmer'] },
+    { id: 'expert-review', icon: ShieldAlert, roles: ['officer'] },
+    { id: 'ai-training', icon: Database, roles: ['researcher', 'admin'] },
+    { id: 'escalate', icon: ShieldAlert, roles: ['farmer'] },
+    { id: 'data', icon: FileText, roles: ['farmer', 'officer', 'researcher'] },
+    { id: 'settings', icon: Settings, roles: ['farmer', 'officer', 'researcher', 'admin'] },
   ];
 
   const filteredItems = menuItems.filter(item => !item.roles || item.roles.includes(effectiveRole));
@@ -47,19 +49,28 @@ export function Sidebar({ activeSection, setActiveSection, onLogout, userData }:
           {filteredItems.map((item) => {
             const Icon = item.icon;
             const isActive = activeSection === item.id;
+            
+            // Map item.id to translations.ts key format (camelCase)
+            let translationKey = item.id;
+            if (item.id === 'expert-review') translationKey = 'expertReview';
+            if (item.id === 'ai-training') translationKey = 'aiTraining';
+
+            const translatedLabel = t(translationKey as any);
+            const translatedSubtitle = t(`${translationKey}Subtitle` as any);
+
             return (
               <li key={item.id}>
                 <button
                   onClick={() => setActiveSection(item.id)}
-                  className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all ${isActive
+                  className={`w-full h-12 flex items-center gap-3 px-4 rounded-lg transition-all ${isActive
                       ? 'bg-[#2E7D32] text-white shadow-md'
                       : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
                     }`}
                 >
-                  <Icon className="w-5 h-5" />
-                  <div className="flex-1 text-left">
-                    <div className={isActive ? 'font-medium' : ''}>{item.label}</div>
-                    <div className="text-xs opacity-75">{item.labelSi}</div>
+                  <Icon className="w-5 h-5 flex-shrink-0" />
+                  <div className="flex-grow min-w-0 text-left">
+                    <div className={`truncate text-sm leading-snug ${isActive ? 'font-semibold' : 'font-medium text-gray-800 dark:text-gray-200'}`}>{translatedLabel}</div>
+                    <div className="text-[10px] opacity-75 truncate leading-none">{translatedSubtitle}</div>
                   </div>
                 </button>
               </li>
