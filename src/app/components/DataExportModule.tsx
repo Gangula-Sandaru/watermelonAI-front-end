@@ -15,6 +15,8 @@ export const DataExportModule = ({ userData }: { userData: any }) => {
   const [isExporting, setIsExporting] = useState(false);
   const [exportSuccess, setExportSuccess] = useState(false);
   const [exportHistory, setExportHistory] = useState<any[]>([]);
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 6;
   const [trendsData, setTrendsData] = useState<{
     total_scans: number;
     most_common_disease: string;
@@ -73,6 +75,13 @@ export const DataExportModule = ({ userData }: { userData: any }) => {
       fetchTrendsPreview();
     }
   }, [role]);
+
+  useEffect(() => {
+    const totalPages = Math.ceil(exportHistory.length / itemsPerPage);
+    if (currentPage > totalPages && totalPages > 0) {
+      setCurrentPage(totalPages);
+    }
+  }, [exportHistory, currentPage, itemsPerPage]);
 
   const handleExport = async () => {
     setIsExporting(true);
@@ -456,52 +465,125 @@ export const DataExportModule = ({ userData }: { userData: any }) => {
           </div>
 
           <div className="bg-muted/50 dark:bg-gray-900/50 border-2 border-dashed border-gray-200 dark:border-gray-700 rounded-lg p-4 flex-1">
-            <div className="space-y-3">
-              {exportHistory.length === 0 ? (
-                <div className="text-center py-10">
-                  <Database className="w-10 h-10 text-gray-300 dark:text-gray-600 mx-auto mb-2 opacity-50" />
-                  <p className="text-sm text-gray-500 dark:text-gray-400">No export history found</p>
-                </div>
-              ) : (
-                exportHistory.map((item) => (
-                  <div key={item.id} className="bg-card dark:bg-gray-800 p-3 rounded-lg border border-gray-200 dark:border-gray-700 flex items-center justify-between group">
-                    <div className="flex items-center gap-3">
-                      <div className={`p-2 rounded-md ${item.format === 'pdf' ? 'bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400' : item.format === 'csv' ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400' : 'bg-green-50 dark:bg-green-900/20 text-green-600 dark:text-green-400'}`}>
-                        <FileText size={16} />
+            {(() => {
+              const totalPages = Math.ceil(exportHistory.length / itemsPerPage);
+              const paginatedHistory = exportHistory.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+              const getPageNumbers = () => {
+                const pages: (number | string)[] = [];
+                const range = 1;
+                for (let i = 1; i <= totalPages; i++) {
+                  if (
+                    i === 1 ||
+                    i === totalPages ||
+                    (i >= currentPage - range && i <= currentPage + range)
+                  ) {
+                    pages.push(i);
+                  } else if (pages[pages.length - 1] !== '...') {
+                    pages.push('...');
+                  }
+                }
+                return pages;
+              };
+
+              return (
+                <>
+                  {paginatedHistory.length === 0 ? (
+                    <div className="text-center py-10">
+                      <Database className="w-10 h-10 text-gray-300 dark:text-gray-600 mx-auto mb-2 opacity-50" />
+                      <p className="text-sm text-gray-500 dark:text-gray-400">No export history found</p>
+                    </div>
+                  ) : (
+                    <>
+                      <div className="space-y-3">
+                        {paginatedHistory.map((item) => (
+                          <div key={item.id} className="bg-card dark:bg-gray-800 p-3 rounded-lg border border-gray-200 dark:border-gray-700 flex items-center justify-between group">
+                            <div className="flex items-center gap-3">
+                              <div className={`p-2 rounded-md ${item.format === 'pdf' ? 'bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400' : item.format === 'csv' ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400' : 'bg-green-50 dark:bg-green-900/20 text-green-600 dark:text-green-400'}`}>
+                                <FileText size={16} />
+                              </div>
+                              <div>
+                                <div className="flex items-center gap-2">
+                                  <p className="text-xs font-bold text-gray-900 dark:text-white">{item.export_id}</p>
+                                  <span className={`text-[9px] px-1.5 py-0.5 rounded-full font-bold uppercase ${item.status === 'COMPLETED' ? 'bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-400' : 'bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-400'}`}>
+                                    {item.status}
+                                  </span>
+                                </div>
+                                <p className="text-[10px] text-gray-500 dark:text-gray-400">
+                                  {(item.data_types ? (Array.isArray(item.data_types) ? item.data_types.join(', ') : item.data_types) : (item.data_type || 'Data')).toUpperCase()} • {new Date(item.created_at).toLocaleDateString()} • {(item.format || 'csv').toUpperCase()} • {item.file_size || '0 KB'}
+                                </p>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                              {item.file && (
+                                <a 
+                                  href={item.file.startsWith('http') ? item.file : `http://127.0.0.1:8000${item.file}`} 
+                                  download
+                                  target="_blank" 
+                                  rel="noopener noreferrer"
+                                  className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded text-gray-500 dark:text-gray-400 transition-colors" 
+                                  title="Download"
+                                >
+                                  <Download size={14} />
+                                </a>
+                              )}
+                              <button onClick={() => deleteHistoryItem(item.id)} className="p-1 hover:bg-red-50 dark:hover:bg-red-900/30 rounded text-red-500 dark:text-red-400 transition-colors" title="Delete">
+                                <Trash2 size={14} />
+                              </button>
+                            </div>
+                          </div>
+                        ))}
                       </div>
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <p className="text-xs font-bold text-gray-900 dark:text-white">{item.export_id}</p>
-                          <span className={`text-[9px] px-1.5 py-0.5 rounded-full font-bold uppercase ${item.status === 'COMPLETED' ? 'bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-400' : 'bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-400'}`}>
-                            {item.status}
-                          </span>
+
+                      {totalPages > 1 && (
+                        <div className="flex items-center justify-between mt-4 pt-3 border-t border-gray-150 dark:border-gray-800">
+                          <p className="text-[10px] font-medium text-gray-500 dark:text-gray-400">
+                            Showing {Math.min(exportHistory.length, (currentPage - 1) * itemsPerPage + 1)}-{Math.min(exportHistory.length, currentPage * itemsPerPage)} of {exportHistory.length} files
+                          </p>
+                          <div className="flex items-center gap-1">
+                            <button
+                              onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                              disabled={currentPage === 1}
+                              className="px-2.5 py-1 rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-[10px] font-bold text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-40 disabled:cursor-not-allowed transition-all cursor-pointer"
+                            >
+                              Prev
+                            </button>
+                            {getPageNumbers().map((pageNum, idx) => {
+                              if (pageNum === '...') {
+                                return (
+                                  <span key={`ellipsis-${idx}`} className="px-1 text-[10px] font-bold text-gray-400 dark:text-gray-600">
+                                    ...
+                                  </span>
+                                );
+                              }
+                              return (
+                                <button
+                                  key={`page-${pageNum}`}
+                                  onClick={() => setCurrentPage(pageNum as number)}
+                                  className={`w-6 h-6 rounded flex items-center justify-center text-[10px] font-bold transition-all cursor-pointer ${
+                                    currentPage === pageNum
+                                      ? 'bg-[#2E7D32] text-white'
+                                      : 'border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700'
+                                  }`}
+                                >
+                                  {pageNum}
+                                </button>
+                               );
+                            })}
+                            <button
+                              onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                              disabled={currentPage === totalPages}
+                              className="px-2.5 py-1 rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-[10px] font-bold text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-40 disabled:cursor-not-allowed transition-all cursor-pointer"
+                            >
+                              Next
+                            </button>
+                          </div>
                         </div>
-                        <p className="text-[10px] text-gray-500 dark:text-gray-400">
-                          {(item.data_types ? (Array.isArray(item.data_types) ? item.data_types.join(', ') : item.data_types) : (item.data_type || 'Data')).toUpperCase()} • {new Date(item.created_at).toLocaleDateString()} • {(item.format || 'csv').toUpperCase()} • {item.file_size || '0 KB'}
-                        </p>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                      {item.file && (
-                        <a 
-                          href={item.file.startsWith('http') ? item.file : `http://127.0.0.1:8000${item.file}`} 
-                          download
-                          target="_blank" 
-                          rel="noopener noreferrer"
-                          className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded text-gray-500 dark:text-gray-400 transition-colors" 
-                          title="Download"
-                        >
-                          <Download size={14} />
-                        </a>
                       )}
-                      <button onClick={() => deleteHistoryItem(item.id)} className="p-1 hover:bg-red-50 dark:hover:bg-red-900/30 rounded text-red-500 dark:text-red-400 transition-colors" title="Delete">
-                        <Trash2 size={14} />
-                      </button>
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
+                    </>
+                  )}
+                </>
+              );
+            })()}
           </div>
           
           <div className="mt-4 p-3 bg-blue-50/50 dark:bg-blue-900/10 rounded-lg border border-blue-100 dark:border-blue-900/30 flex items-center gap-2">
