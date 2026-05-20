@@ -1,9 +1,18 @@
 import { useState, useRef, useEffect } from 'react';
 import { Card } from './ui/card';
-import { Upload, CircleCheck, CircleAlert, Leaf, Loader2, X, History, Calendar, AlertTriangle, Eye, EyeOff } from 'lucide-react';
+import { Upload, CircleCheck, CircleAlert, Leaf, Loader2, X, History, Calendar, AlertTriangle, Eye, EyeOff, Maximize2, Brain } from 'lucide-react';
 import { Button } from './ui/button';
 import { toast } from 'sonner';
 import { TreatmentRecommendation } from './TreatmentRecommendation';
+
+const getFullUrl = (url: string | null) => {
+  if (!url) return '';
+  if (url.startsWith('http') || url.startsWith('blob:') || url.startsWith('data:')) {
+    return url;
+  }
+  const cleanUrl = url.startsWith('/') ? url : `/${url}`;
+  return `http://127.0.0.1:8000${cleanUrl}`;
+};
 
 export function AIDiagnosisModule() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -16,6 +25,13 @@ export function AIDiagnosisModule() {
   // New state to control the Unknown Disease popup
   const [showUnknownModal, setShowUnknownModal] = useState(false);
   const [showHeatmap, setShowHeatmap] = useState(false);
+  const [isMaximized, setIsMaximized] = useState(false);
+
+  // Active AI Model and Proxy endpoints state
+  const [modelInfo, setModelInfo] = useState<any>(null);
+  const [availableModels, setAvailableModels] = useState<string[]>([]);
+  const [modelHealth, setModelHealth] = useState<'online' | 'offline' | 'loading'>('loading');
+  const [isSwitchingModel, setIsSwitchingModel] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -56,7 +72,7 @@ export function AIDiagnosisModule() {
   const fetchHistory = async () => {
     setIsLoadingHistory(true);
     try {
-      const token = localStorage.getItem('access_token');
+      const token = localStorage.getItem('access_token') || localStorage.getItem('token');
       const response = await fetch('http://127.0.0.1:8000/api/disease/history/', {
         headers: token ? { 'Authorization': `Bearer ${token}` } : {},
       });
@@ -71,8 +87,72 @@ export function AIDiagnosisModule() {
     }
   };
 
+  const fetchModelInfo = async () => {
+    try {
+      const token = localStorage.getItem('access_token') || localStorage.getItem('token');
+      const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
+
+      // 1. Fetch Health
+      const healthRes = await fetch('http://127.0.0.1:8000/api/disease/model/health/', { headers });
+      if (healthRes.ok) {
+        const healthData = await healthRes.json();
+        setModelHealth(healthData.status === 'healthy' ? 'online' : 'offline');
+      } else {
+        setModelHealth('offline');
+      }
+
+      // 2. Fetch Info
+      const infoRes = await fetch('http://127.0.0.1:8000/api/disease/model/info/', { headers });
+      if (infoRes.ok) {
+        const infoData = await infoRes.json();
+        setModelInfo(infoData);
+      }
+
+      // 3. Fetch Available
+      const availRes = await fetch('http://127.0.0.1:8000/api/disease/model/available/', { headers });
+      if (availRes.ok) {
+        const availData = await availRes.json();
+        setAvailableModels(availData.available_models || []);
+      }
+    } catch (err) {
+      console.error("Failed to load model details", err);
+      setModelHealth('offline');
+    }
+  };
+
+  const handleModelSwitch = async (modelFilename: string) => {
+    if (isSwitchingModel) return;
+    setIsSwitchingModel(true);
+    const toastId = toast.loading(`Switching classification model to ${modelFilename}...`);
+
+    try {
+      const token = localStorage.getItem('access_token') || localStorage.getItem('token');
+      const response = await fetch('http://127.0.0.1:8000/api/disease/model/switch/', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+        },
+        body: JSON.stringify({ model_filename: modelFilename })
+      });
+
+      if (response.ok) {
+        toast.success(`Successfully switched model to ${modelFilename}`, { id: toastId });
+        await fetchModelInfo(); // Refresh active model details
+      } else {
+        const data = await response.json();
+        toast.error(data.detail || "Failed to switch model", { id: toastId });
+      }
+    } catch (err) {
+      toast.error("Failed to switch model due to network error", { id: toastId });
+    } finally {
+      setIsSwitchingModel(false);
+    }
+  };
+
   useEffect(() => {
     fetchHistory();
+    fetchModelInfo();
   }, []);
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -98,7 +178,7 @@ export function AIDiagnosisModule() {
     formData.append('location_name', 'Field Sector A');
 
     try {
-      const token = localStorage.getItem('access_token');
+      const token = localStorage.getItem('access_token') || localStorage.getItem('token');
       const response = await fetch('http://127.0.0.1:8000/api/disease/analyze/', {
         method: 'POST',
         headers: token ? { 'Authorization': `Bearer ${token}` } : {},
@@ -115,7 +195,13 @@ export function AIDiagnosisModule() {
       if (response.ok) {
         setAnalysisResult(data);
         fetchHistory(); // Refresh local history
-        
+
+        // Auto-show heatmap if available
+        const hasHeatmap = data?.prediction?.heatmap_image || data?.prediction?.raw_response?.predictions?.heatmap_image || data?.prediction?.raw_response?.heatmap_image;
+        if (hasHeatmap) {
+          setShowHeatmap(true);
+        }
+
         // Notify other components to refresh
         window.dispatchEvent(new CustomEvent('watermelon-new-scan'));
 
@@ -148,6 +234,14 @@ export function AIDiagnosisModule() {
     setAnalysisResult(item);
     setPreviewUrl(item.image); // Display remote history image
     setSelectedFile(null); // Since it's from history, no local file
+
+    // Auto-show heatmap if available
+    const hasHeatmap = item?.prediction?.heatmap_image || item?.prediction?.raw_response?.predictions?.heatmap_image || item?.prediction?.raw_response?.heatmap_image;
+    if (hasHeatmap) {
+      setShowHeatmap(true);
+    } else {
+      setShowHeatmap(false);
+    }
   };
 
   return (
@@ -159,6 +253,72 @@ export function AIDiagnosisModule() {
             <p className="text-sm text-gray-500 dark:text-gray-400">AI රෝග විනිශ්චය පද්ධතිය</p>
           </div>
           <Leaf className="w-8 h-8 text-[#2E7D32]" />
+        </div>
+
+        {/* 🧠 Full-Width AI Classifier Settings Header 🧠 */}
+        <div className="w-full mb-6 p-5 bg-gray-50/70 dark:bg-gray-800/40 rounded-2xl border border-gray-200/60 dark:border-gray-700/50 shadow-sm relative overflow-hidden transition-all duration-300 hover:shadow-md">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <div className="p-2.5 bg-purple-100 dark:bg-purple-900/30 rounded-xl">
+                <Brain className="w-6 h-6 text-purple-600 dark:text-purple-400 animate-pulse" />
+              </div>
+              <div>
+                <h4 className="font-extrabold text-gray-900 dark:text-white text-base">Classifier Model Settings</h4>
+                <p className="text-xs text-gray-500 dark:text-gray-400">Manage and switch the active leaf classification AI model</p>
+              </div>
+            </div>
+
+            {/* Health & Switcher controls */}
+            <div className="flex flex-wrap items-center gap-3">
+              {/* Health status indicator */}
+              <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white dark:bg-gray-800/80 shadow-sm border border-gray-150 dark:border-gray-700/40 text-xs">
+                <span className="relative flex h-2 w-2">
+                  {modelHealth === 'online' && (
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                  )}
+                  <span className={`relative inline-flex rounded-full h-2 w-2 ${modelHealth === 'online' ? 'bg-green-500' : modelHealth === 'loading' ? 'bg-yellow-500 animate-pulse' : 'bg-red-500'}`}></span>
+                </span>
+                <span className="font-bold uppercase tracking-wider text-gray-600 dark:text-gray-400">
+                  Model Status: <span className={modelHealth === 'online' ? 'text-green-600 dark:text-green-400' : 'text-red-500'}>{modelHealth}</span>
+                </span>
+              </div>
+
+              {/* Model Switcher Select dropdown */}
+              {availableModels.length > 0 && (
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider hidden sm:inline">Switch Active Model:</span>
+                  <select
+                    onChange={(e) => handleModelSwitch(e.target.value)}
+                    value={modelInfo?.current_file || ''}
+                    disabled={isSwitchingModel}
+                    className="px-3.5 py-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-xs font-bold text-gray-800 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-[#2E7D32]/10 focus:border-[#2E7D32] transition-all cursor-pointer disabled:opacity-50"
+                  >
+                    {availableModels.map((filename) => (
+                      <option key={filename} value={filename}>
+                        {filename}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Model info labels row */}
+          {modelInfo && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-4 pt-4 border-t border-gray-200/50 dark:border-gray-700/50">
+              <div className="bg-white dark:bg-gray-800/60 p-3 rounded-xl border border-gray-100 dark:border-gray-700/40 flex justify-between items-center text-xs">
+                <span className="text-gray-500 dark:text-gray-400 font-semibold">Active File</span>
+                <span className="font-black text-purple-600 dark:text-purple-400 tracking-wide font-mono truncate max-w-[190px]" title={modelInfo.current_file}>
+                  {modelInfo.current_file}
+                </span>
+              </div>
+              <div className="bg-white dark:bg-gray-800/60 p-3 rounded-xl border border-gray-100 dark:border-gray-700/40 flex justify-between items-center text-xs">
+                <span className="text-gray-500 dark:text-gray-400 font-semibold">Supported Classes</span>
+                <span className="font-bold text-gray-900 dark:text-white">{modelInfo.num_classes} categories</span>
+              </div>
+            </div>
+          )}
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -181,31 +341,40 @@ export function AIDiagnosisModule() {
               <div className="relative border-2 border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden flex-1 min-h-[250px]">
                 <button
                   onClick={clearSelection}
-                  className="absolute top-2 right-2 p-1.5 bg-red-500 text-white rounded-full hover:bg-red-600 z-10 transition-colors"
+                  className="absolute top-2 right-2 p-1.5 bg-red-500 text-white rounded-full hover:bg-red-600 z-10 transition-colors animate-in fade-in zoom-in-50"
                   title="Clear image"
                 >
                   <X className="w-4 h-4" />
                 </button>
-                <img
-                  src={showHeatmap && analysisResult?.prediction?.heatmap_image 
-                    ? analysisResult.prediction.heatmap_image 
-                    : (typeof previewUrl === 'string' && previewUrl ? (
-                    previewUrl.startsWith('http') || previewUrl.startsWith('blob:') 
-                      ? previewUrl 
-                      : `http://127.0.0.1:8000${previewUrl.startsWith('/media/') ? '' : previewUrl.startsWith('media/') ? '' : '/media/'}${previewUrl.startsWith('/') ? '' : '/'}${previewUrl}`
-                  ) : '')}
-                  alt="Selected leaf"
-                  className="w-full h-full object-cover absolute inset-0 transition-all duration-300"
-                />
-                
-                {analysisResult?.prediction?.heatmap_image && (
-                  <button
-                    onClick={() => setShowHeatmap(!showHeatmap)}
-                    className="absolute bottom-2 right-2 px-3 py-1.5 bg-black/60 backdrop-blur-md text-white rounded-full hover:bg-black/80 z-10 transition-colors text-xs font-bold flex items-center gap-2 shadow-lg"
-                  >
-                    {showHeatmap ? <><EyeOff className="w-3.5 h-3.5" /> Hide Heatmap</> : <><Eye className="w-3.5 h-3.5" /> Show AI Heatmap</>}
-                  </button>
-                )}
+                <button
+                  onClick={() => setIsMaximized(true)}
+                  className="absolute top-2 left-2 p-1.5 bg-black/60 backdrop-blur-md text-white rounded-full hover:bg-black/80 z-10 transition-colors shadow-md flex items-center justify-center animate-in fade-in zoom-in-50"
+                  title="Maximize image"
+                >
+                  <Maximize2 className="w-4 h-4" />
+                </button>
+                {(() => {
+                  const heatmapImg = analysisResult?.prediction?.heatmap_image || analysisResult?.prediction?.raw_response?.predictions?.heatmap_image || analysisResult?.prediction?.raw_response?.heatmap_image;
+
+                  return (
+                    <>
+                      <img
+                        src={showHeatmap && heatmapImg ? getFullUrl(heatmapImg) : getFullUrl(previewUrl)}
+                        alt="Selected leaf"
+                        className="w-full h-full object-cover absolute inset-0 transition-all duration-300"
+                      />
+
+                      {heatmapImg && (
+                        <button
+                          onClick={() => setShowHeatmap(!showHeatmap)}
+                          className="absolute bottom-2 right-2 px-3 py-1.5 bg-black/60 backdrop-blur-md text-white rounded-full hover:bg-black/80 z-10 transition-colors text-xs font-bold flex items-center gap-2 shadow-lg"
+                        >
+                          {showHeatmap ? <><EyeOff className="w-3.5 h-3.5" /> Hide Heatmap</> : <><Eye className="w-3.5 h-3.5" /> Show AI Heatmap</>}
+                        </button>
+                      )}
+                    </>
+                  );
+                })()}
               </div>
             )}
 
@@ -274,6 +443,14 @@ export function AIDiagnosisModule() {
                       />
                     </div>
                   </div>
+
+                  {/* AI Model Details */}
+                  <div className="mt-4 pt-3 border-t border-gray-100 dark:border-gray-700 flex justify-between items-center text-xs text-gray-500 dark:text-gray-400">
+                    <span className="font-semibold">AI Prediction Model:</span>
+                    <span className="font-bold text-green-700 dark:text-green-400">
+                      {analysisResult.prediction?.model_version || 'Watermelon-V1 (v1.0.0)'}
+                    </span>
+                  </div>
                 </div>
 
 
@@ -302,7 +479,7 @@ export function AIDiagnosisModule() {
             <span className="relative inline-flex rounded-full h-3 w-3 bg-blue-500"></span>
           </span>
           <p className="text-xs font-semibold text-blue-800 dark:text-blue-400 tracking-wide">
-            EXTERNAL AI MODEL <span className="opacity-60 font-medium px-2">&bull;</span> STATUS: ACTIVE <span className="opacity-60 font-medium px-2">&bull;</span> ENDPOINT: /api/disease/analyze/
+            EXTERNAL AI MODEL <span className="opacity-60 font-medium px-2">&bull;</span> ACTIVE MODEL: {analysisResult?.prediction?.model_version || 'Watermelon-V1'} <span className="opacity-60 font-medium px-2">&bull;</span> STATUS: ACTIVE <span className="opacity-60 font-medium px-2">&bull;</span> ENDPOINT: /api/disease/analyze/
           </p>
         </div>
 
@@ -338,14 +515,23 @@ export function AIDiagnosisModule() {
               {history.slice(0, 4).map((item: any) => (
                 <div
                   key={item.id}
-                  className={`bg-gray-50 dark:bg-gray-800/50 rounded-lg p-4 border transition-all cursor-pointer ${analysisResult?.id === item.id ? 'border-green-500 ring-2 ring-green-500/20' : 'border-gray-200 dark:border-gray-700 hover:border-green-300'}`}
+                  className={`bg-gray-50 dark:bg-gray-800/50 rounded-xl p-3 border transition-all cursor-pointer flex flex-col justify-between ${analysisResult?.id === item.id ? 'border-green-500 ring-2 ring-green-500/20 shadow-md' : 'border-gray-200 dark:border-gray-700 hover:border-green-300 hover:shadow-sm'}`}
                   onClick={() => loadHistoryItem(item)}
                 >
-                  <div className="flex items-center justify-between mb-3">
-                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${item.status === 'COMPLETED' ? 'bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-400' : 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/40 dark:text-yellow-400'}`}>
+                  {item.image && (
+                    <div className="relative aspect-[4/3] w-full rounded-lg overflow-hidden mb-3 bg-gray-100 dark:bg-gray-800 border border-gray-200/40 dark:border-gray-700/40">
+                      <img
+                        src={getFullUrl(item.image)}
+                        alt={item.prediction?.disease_name || "Leaf Scan"}
+                        className="w-full h-full object-cover transition-transform duration-300 hover:scale-105"
+                      />
+                    </div>
+                  )}
+                  <div className="flex items-center justify-between mb-2">
+                    <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full ${item.status === 'COMPLETED' ? 'bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-400' : 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/40 dark:text-yellow-400'}`}>
                       {item.status}
                     </span>
-                    <div className="flex items-center gap-1 text-[10px] text-gray-500 dark:text-gray-400 font-medium">
+                    <div className="flex items-center gap-1 text-[9px] text-gray-500 dark:text-gray-400 font-medium">
                       <Calendar className="w-3 h-3" />
                       {new Date(item.created_at).toLocaleDateString()}
                     </div>
@@ -353,9 +539,9 @@ export function AIDiagnosisModule() {
                   <div className="font-bold text-sm text-gray-900 dark:text-white mb-1 truncate" title={item.prediction?.disease_name}>
                     {item.prediction?.disease_name || 'N/A'}
                   </div>
-                  <div className="text-xs text-gray-500 dark:text-gray-400 flex justify-between items-center mt-2">
+                  <div className="text-xs text-gray-500 dark:text-gray-400 flex justify-between items-center mt-1.5 pt-1.5 border-t border-gray-100 dark:border-gray-800">
                     <span>Confidence:</span>
-                    <span className="font-bold text-gray-700 dark:text-gray-200">
+                    <span className="font-bold text-[#2E7D32] dark:text-green-400">
                       {item.prediction?.confidence ? `${(item.prediction.confidence * 100).toFixed(1)}%` : '--'}
                     </span>
                   </div>
@@ -429,6 +615,41 @@ export function AIDiagnosisModule() {
               >
                 Dismiss
               </Button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* 🔴 MAXIMIZED IMAGE LIGHTBOX MODAL 🔴 */}
+      {isMaximized && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/90 backdrop-blur-md animate-in fade-in duration-200">
+          <div className="relative max-w-5xl w-full h-[85vh] flex flex-col items-center justify-center">
+            <button
+              onClick={() => setIsMaximized(false)}
+              className="absolute -top-12 right-0 p-2 text-white hover:text-gray-300 transition-colors flex items-center gap-1.5 font-bold text-sm bg-black/40 backdrop-blur-md rounded-full px-4 py-2"
+            >
+              <X className="w-5 h-5" /> Close
+            </button>
+            <div className="bg-white dark:bg-gray-900 p-2 rounded-2xl overflow-hidden w-full h-full flex items-center justify-center shadow-2xl relative border border-gray-200 dark:border-gray-800">
+              {(() => {
+                const heatmapImg = analysisResult?.prediction?.heatmap_image || analysisResult?.prediction?.raw_response?.predictions?.heatmap_image || analysisResult?.prediction?.raw_response?.heatmap_image;
+                const activeImg = showHeatmap && heatmapImg ? getFullUrl(heatmapImg) : getFullUrl(previewUrl);
+
+                return (
+                  <img
+                    src={activeImg}
+                    alt="Maximized leaf"
+                    className="max-w-full max-h-full object-contain rounded-lg animate-in zoom-in-95 duration-200"
+                  />
+                );
+              })()}
+
+              {analysisResult && (
+                <div className="absolute bottom-4 left-1/2 -translate-x-1/2 bg-black/80 backdrop-blur-md text-white px-6 py-3 rounded-full flex items-center gap-4 text-xs sm:text-sm font-semibold shadow-xl border border-white/10">
+                  <span>Condition: <strong className="text-green-400">{analysisResult.prediction?.disease_name || 'Healthy'}</strong></span>
+                  <span className="opacity-40">|</span>
+                  <span>Confidence: <strong className="text-green-400">{((analysisResult.prediction?.confidence || 0) * 100).toFixed(1)}%</strong></span>
+                </div>
+              )}
             </div>
           </div>
         </div>

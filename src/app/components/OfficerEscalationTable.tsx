@@ -1,25 +1,26 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  Table, 
-  TableBody, 
-  TableCell, 
-  TableHead, 
-  TableHeader, 
-  TableRow 
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow
 } from './ui/table';
 import { Card } from './ui/card';
 import { Badge } from './ui/badge';
 import { Button } from './ui/button';
-import { 
-  Search, 
-  Filter, 
-  ExternalLink, 
+import {
+  Search,
+  Filter,
+  ExternalLink,
   MessageSquare,
   Clock,
   User,
   AlertCircle,
   Loader2,
-  CheckCircle2
+  CheckCircle2,
+  Plus
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -47,6 +48,12 @@ export function OfficerEscalationTable({ setActiveSection }: { setActiveSection?
   const [reviewComments, setReviewComments] = useState('');
   const [finalConclusion, setFinalConclusion] = useState('');
 
+  const [diseaseTags, setDiseaseTags] = useState<string[]>([]);
+  const [diseaseTag, setDiseaseTag] = useState('');
+
+  const [showAddDiseaseModal, setShowAddDiseaseModal] = useState(false);
+  const [newDiseaseName, setNewDiseaseName] = useState('');
+
   const fetchData = async () => {
     try {
       const token = localStorage.getItem('access_token');
@@ -66,8 +73,23 @@ export function OfficerEscalationTable({ setActiveSection }: { setActiveSection?
     }
   };
 
+  const fetchDiseaseTags = async () => {
+    try {
+      const token = localStorage.getItem('access_token');
+      const response = await fetch('http://127.0.0.1:8000/api/escalation/disease-tags/', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (response.ok) {
+        setDiseaseTags(await response.json());
+      }
+    } catch (error) {
+      console.error("Failed to fetch disease tags", error);
+    }
+  };
+
   useEffect(() => {
     fetchData();
+    fetchDiseaseTags();
   }, []);
 
   const handleResolve = async (id: number) => {
@@ -81,7 +103,8 @@ export function OfficerEscalationTable({ setActiveSection }: { setActiveSection?
         },
         body: JSON.stringify({
           officer_comments: reviewComments,
-          final_conclusion: finalConclusion
+          final_conclusion: finalConclusion,
+          disease_tag: diseaseTag
         })
       });
       if (response.ok) {
@@ -109,7 +132,7 @@ export function OfficerEscalationTable({ setActiveSection }: { setActiveSection?
     }
   };
 
-  const filteredData = data.filter(item => 
+  const filteredData = data.filter(item =>
     item.farmer_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     item.scan_details.disease.toLowerCase().includes(searchTerm.toLowerCase()) ||
     item.scan_details.uuid.toLowerCase().includes(searchTerm.toLowerCase())
@@ -132,13 +155,13 @@ export function OfficerEscalationTable({ setActiveSection }: { setActiveSection?
               <h3 className="text-lg font-bold text-gray-900 dark:text-white">Expert Review Queue</h3>
               <p className="text-sm text-gray-500 dark:text-gray-400">Manage and respond to farmer escalations</p>
             </div>
-            
+
             <div className="flex items-center gap-3">
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                <input 
-                  type="text" 
-                  placeholder="Search requests..." 
+                <input
+                  type="text"
+                  placeholder="Search requests..."
                   className="pl-10 pr-4 py-2 bg-background border border-gray-200 dark:border-gray-700 rounded-xl text-sm focus:ring-2 focus:ring-[#2E7D32]/20 focus:border-[#2E7D32] outline-none transition-all w-64 text-gray-900 dark:text-gray-100"
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
@@ -197,13 +220,14 @@ export function OfficerEscalationTable({ setActiveSection }: { setActiveSection?
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <Button 
-                          variant="ghost" 
-                          size="sm" 
+                        <Button
+                          variant="ghost"
+                          size="sm"
                           onClick={() => {
                             setSelectedRequest(row);
                             setReviewComments(row.officer_comments || '');
                             setFinalConclusion(row.final_conclusion || '');
+                            setDiseaseTag(row.scan_details.disease || '');
                           }}
                           className="h-8 gap-1.5 text-[#2E7D32] hover:bg-[#2E7D32]/10 dark:hover:bg-[#2E7D32]/20 rounded-lg"
                         >
@@ -211,9 +235,9 @@ export function OfficerEscalationTable({ setActiveSection }: { setActiveSection?
                           View
                         </Button>
                         {row.status !== 'RESOLVED' && (
-                          <Button 
-                            variant="ghost" 
-                            size="sm" 
+                          <Button
+                            variant="ghost"
+                            size="sm"
                             onClick={() => handleResolve(row.id)}
                             className="h-8 gap-1.5 text-green-600 dark:text-green-400 hover:text-green-700 hover:bg-green-50 dark:hover:bg-green-900/20 rounded-lg"
                           >
@@ -259,8 +283,8 @@ export function OfficerEscalationTable({ setActiveSection }: { setActiveSection?
               {/* Left Side: Image */}
               <div className="relative h-64 md:h-full bg-muted/50">
                 {selectedRequest.scan_details.image ? (
-                  <img 
-                    src={selectedRequest.scan_details.image} 
+                  <img
+                    src={selectedRequest.scan_details.image}
                     alt="Plant Issue"
                     className="w-full h-full object-cover"
                   />
@@ -284,8 +308,8 @@ export function OfficerEscalationTable({ setActiveSection }: { setActiveSection?
                       Request #{selectedRequest.scan_details.uuid}
                     </p>
                   </div>
-                  <Button 
-                    variant="ghost" 
+                  <Button
+                    variant="ghost"
                     onClick={() => setSelectedRequest(null)}
                     className="rounded-full w-10 h-10 p-0 text-gray-400 hover:text-gray-900 dark:hover:text-white"
                   >
@@ -310,13 +334,41 @@ export function OfficerEscalationTable({ setActiveSection }: { setActiveSection?
                   <div>
                     <label className="text-[10px] font-black text-[#2E7D32] uppercase tracking-[0.2em] mb-2 block">Officer Review</label>
                     <div className="space-y-3">
-                      <textarea 
+                      <div className="flex gap-2 items-center mb-1">
+                        <div className="flex-1">
+                          <select
+                            value={diseaseTag}
+                            onChange={(e) => setDiseaseTag(e.target.value)}
+                            className="w-full bg-muted/50 border border-gray-100 dark:border-gray-700 rounded-2xl p-3 text-sm focus:ring-2 focus:ring-[#2E7D32]/20 focus:border-[#2E7D32] outline-none transition-all text-gray-900 dark:text-gray-100 appearance-none"
+                            style={{ backgroundImage: 'url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22292.4%22%20height%3D%22292.4%22%3E%3Cpath%20fill%3D%22%23131313%22%20d%3D%22M287%2069.4a17.6%2017.6%200%200%200-13-5.4H18.4c-5%200-9.3%201.8-12.9%205.4A17.6%2017.6%200%200%200%200%2082.2c0%205%201.8%209.3%205.4%2012.9l128%20127.9c3.6%203.6%207.8%205.4%2012.8%205.4s9.2-1.8%2012.8-5.4L287%2095c3.5-3.5%205.4-7.8%205.4-12.8%200-5-1.9-9.2-5.5-12.8z%22%2F%3E%3C%2Fsvg%3E")', backgroundRepeat: 'no-repeat', backgroundPosition: 'right .7rem top 50%', backgroundSize: '.65rem auto' }}
+                          >
+                            <option value="" disabled>Select verified disease classification...</option>
+                            {diseaseTags.map(tag => (
+                              <option key={tag} value={tag}>{tag}</option>
+                            ))}
+                            {diseaseTag && !diseaseTags.includes(diseaseTag) && (
+                              <option value={diseaseTag}>{diseaseTag}</option>
+                            )}
+                          </select>
+                        </div>
+                        <Button
+                          type="button"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            setShowAddDiseaseModal(true);
+                          }}
+                          className="bg-[#2E7D32]/10 hover:bg-[#2E7D32]/20 text-[#2E7D32] rounded-xl h-[46px] w-[46px] p-0 flex items-center justify-center shrink-0 shadow-sm border border-[#2E7D32]/20"
+                        >
+                          <Plus size={18} />
+                        </Button>
+                      </div>
+                      <textarea
                         placeholder="Add your review comments here..."
                         className="w-full bg-muted/50 border border-gray-100 dark:border-gray-700 rounded-2xl p-3 text-sm min-h-[80px] focus:ring-2 focus:ring-[#2E7D32]/20 focus:border-[#2E7D32] outline-none transition-all text-gray-900 dark:text-gray-100"
                         value={reviewComments}
                         onChange={(e) => setReviewComments(e.target.value)}
                       />
-                      <textarea 
+                      <textarea
                         placeholder="Final Conclusion / Treatment Plan..."
                         className="w-full bg-[#2E7D32]/5 border border-[#2E7D32]/10 rounded-2xl p-3 text-sm font-bold text-gray-900 dark:text-white min-h-[60px] focus:ring-2 focus:ring-[#2E7D32]/20 focus:border-[#2E7D32] outline-none transition-all"
                         value={finalConclusion}
@@ -334,22 +386,22 @@ export function OfficerEscalationTable({ setActiveSection }: { setActiveSection?
                 </div>
 
                 <div className="pt-8 mt-auto flex gap-3 border-t border-gray-100">
-                  <Button 
+                  <Button
                     className="flex-1 bg-[#2E7D32] hover:bg-[#1B5E20] text-white rounded-xl py-6 font-bold shadow-lg shadow-green-900/20"
                     onClick={() => {
-                        if (setActiveSection) {
-                            localStorage.setItem('pending_chat_esc_id', selectedRequest.id.toString());
-                            setActiveSection('communications');
-                        }
-                        setSelectedRequest(null);
+                      if (setActiveSection) {
+                        localStorage.setItem('pending_chat_esc_id', selectedRequest.id.toString());
+                        setActiveSection('communications');
+                      }
+                      setSelectedRequest(null);
                     }}
                   >
                     <MessageSquare size={18} className="mr-2" />
                     Chat
                   </Button>
                   {selectedRequest.status !== 'RESOLVED' && (
-                    <Button 
-                      variant="outline" 
+                    <Button
+                      variant="outline"
                       className="flex-1 border-gray-200 text-gray-600 hover:bg-gray-50 rounded-xl py-6 font-bold"
                       onClick={() => handleResolve(selectedRequest.id)}
                     >
@@ -359,6 +411,49 @@ export function OfficerEscalationTable({ setActiveSection }: { setActiveSection?
                   )}
                 </div>
               </div>
+            </div>
+          </Card>
+        </div>
+      )}
+
+      {/* Add New Disease Modal */}
+      {showAddDiseaseModal && (
+        <div className="fixed inset-0 z-[3000] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setShowAddDiseaseModal(false)} />
+          <Card className="relative w-full max-w-sm bg-card shadow-2xl rounded-2xl p-6 border-none animate-in zoom-in-95 duration-200">
+            <h4 className="text-lg font-bold text-gray-900 dark:text-white mb-4">Add New Disease</h4>
+            <input
+              type="text"
+              placeholder="Enter new disease name..."
+              value={newDiseaseName}
+              onChange={(e) => setNewDiseaseName(e.target.value)}
+              autoFocus
+              className="w-full bg-muted/50 border border-gray-100 dark:border-gray-700 rounded-xl p-3 text-sm focus:ring-2 focus:ring-[#2E7D32]/20 focus:border-[#2E7D32] outline-none transition-all text-gray-900 dark:text-gray-100 mb-4"
+            />
+            <div className="flex gap-3 justify-end">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setShowAddDiseaseModal(false);
+                  setNewDiseaseName('');
+                }}
+                className="rounded-xl"
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={() => {
+                  if (newDiseaseName.trim()) {
+                    setDiseaseTags([...diseaseTags, newDiseaseName.trim()]);
+                    setDiseaseTag(newDiseaseName.trim());
+                    setShowAddDiseaseModal(false);
+                    setNewDiseaseName('');
+                  }
+                }}
+                className="bg-[#2E7D32] hover:bg-[#1B5E20] text-white rounded-xl"
+              >
+                Add Disease
+              </Button>
             </div>
           </Card>
         </div>

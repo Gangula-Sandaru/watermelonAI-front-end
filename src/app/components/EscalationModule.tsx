@@ -304,7 +304,7 @@ export const EscalationModule = () => {
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm text-left">
-            <thead className="bg-muted text-gray-600 dark:text-gray-400">
+            <thead className="bg-gray-50 dark:bg-gray-800/50 text-gray-600 dark:text-gray-400">
               <tr>
                 <th className="px-4 py-3 font-semibold">Request ID</th>
                 <th className="px-4 py-3 font-semibold">Officer Name</th>
@@ -314,18 +314,18 @@ export const EscalationModule = () => {
                 <th className="px-4 py-3 font-semibold text-right">Actions</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-100">
+            <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
               {requests.length > 0 ? (
                 requests.map((req) => (
                   <React.Fragment key={req.id}>
-                    <tr className="hover:bg-muted/50 dark:hover:bg-gray-800 transition-colors">
+                    <tr className="hover:bg-muted/50 dark:hover:bg-gray-800/40 transition-colors">
                       <td className="px-4 py-4 font-bold text-gray-900 dark:text-white">REQ-{String(req.id).padStart(3, '0')}</td>
                       <td className="px-4 py-4 text-gray-700 dark:text-gray-300">{req.officer_name}</td>
                       <td className="px-4 py-4 text-gray-500 dark:text-gray-400 font-mono text-xs">{req.scan_id?.substring(0, 8)}</td>
                       <td className="px-4 py-4">
                         <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold ${
-                          req.status === 'PENDING' ? 'bg-amber-100 text-amber-700' : 
-                          req.status === 'RESOLVED' ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700'
+                          req.status === 'PENDING' ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400' : 
+                          req.status === 'RESOLVED' ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' : 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
                         }`}>
                           {req.status}
                         </span>
@@ -336,7 +336,7 @@ export const EscalationModule = () => {
                           variant="outline" 
                           size="sm" 
                           onClick={() => handleOpenChat(req)}
-                          className="text-[#2E7D32] border-[#2E7D32] hover:bg-green-50 gap-2"
+                          className="text-[#2E7D32] dark:text-green-400 border-[#2E7D32] dark:border-green-800 hover:bg-green-50 dark:hover:bg-green-950/30 gap-2"
                         >
                           <MessageSquare size={14} />
                           Chat
@@ -344,13 +344,13 @@ export const EscalationModule = () => {
                       </td>
                     </tr>
                     {req.status === 'RESOLVED' && (req.final_conclusion || req.officer_comments) && (
-                      <tr className="bg-green-50/30">
+                      <tr className="bg-green-50/10 dark:bg-green-950/10">
                         <td colSpan={6} className="px-6 py-4">
                           <div className="flex gap-4 items-start border-l-4 border-[#2E7D32] pl-4">
                             <div className="flex-1 space-y-2">
                               <div className="flex items-center gap-2">
-                                <CheckCircle2 size={16} className="text-[#2E7D32]" />
-                                <span className="text-xs font-black text-[#2E7D32] uppercase tracking-wider">Expert Decision</span>
+                                <CheckCircle2 size={16} className="text-[#2E7D32] dark:text-green-400" />
+                                <span className="text-xs font-black text-[#2E7D32] dark:text-green-400 uppercase tracking-wider">Expert Decision</span>
                               </div>
                               {req.final_conclusion && (
                                 <p className="text-sm font-bold text-gray-900 dark:text-white leading-snug">
@@ -374,11 +374,11 @@ export const EscalationModule = () => {
                 ))
               ) : (
                 <tr>
-                  <td colSpan={6} className="px-4 py-12 text-center text-gray-400">
+                  <td colSpan={6} className="px-4 py-12 text-center text-gray-400 dark:text-gray-500">
                     <div className="flex flex-col items-center gap-2">
                       <History size={32} className="opacity-20" />
-                      <p className="font-bold">No active escalations</p>
-                      <p className="text-xs">Escalate a problem scan to get expert advice.</p>
+                      <p className="font-bold text-gray-900 dark:text-white">No active escalations</p>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">Escalate a problem scan to get expert advice.</p>
                     </div>
                   </td>
                 </tr>
