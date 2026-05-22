@@ -4,6 +4,7 @@ import { Upload, CircleCheck, CircleAlert, Leaf, Loader2, X, History, Calendar, 
 import { Button } from './ui/button';
 import { toast } from 'sonner';
 import { TreatmentRecommendation } from './TreatmentRecommendation';
+import { useTranslation } from '../utils/translations';
 
 const getFullUrl = (url: string | null) => {
   if (!url) return '';
@@ -15,6 +16,7 @@ const getFullUrl = (url: string | null) => {
 };
 
 export function AIDiagnosisModule() {
+  const { t, currentLanguage } = useTranslation();
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -123,7 +125,7 @@ export function AIDiagnosisModule() {
   const handleModelSwitch = async (modelFilename: string) => {
     if (isSwitchingModel) return;
     setIsSwitchingModel(true);
-    const toastId = toast.loading(`Switching classification model to ${modelFilename}...`);
+    const toastId = toast.loading(`${t('switchingModelMsg')}${modelFilename}...`);
 
     try {
       const token = localStorage.getItem('access_token') || localStorage.getItem('token');
@@ -137,14 +139,14 @@ export function AIDiagnosisModule() {
       });
 
       if (response.ok) {
-        toast.success(`Successfully switched model to ${modelFilename}`, { id: toastId });
+        toast.success(`${t('switchedModelSuccess')}${modelFilename}`, { id: toastId });
         await fetchModelInfo(); // Refresh active model details
       } else {
         const data = await response.json();
-        toast.error(data.detail || "Failed to switch model", { id: toastId });
+        toast.error(data.detail || t('failedSwitchModel'), { id: toastId });
       }
     } catch (err) {
-      toast.error("Failed to switch model due to network error", { id: toastId });
+      toast.error(t('failedSwitchModelNetwork'), { id: toastId });
     } finally {
       setIsSwitchingModel(false);
     }
@@ -167,7 +169,7 @@ export function AIDiagnosisModule() {
 
   const handleAnalyzeClick = async () => {
     if (!selectedFile) {
-      toast.error("Please select an image first");
+      toast.error(t('selectImageFirst'));
       return;
     }
 
@@ -210,13 +212,13 @@ export function AIDiagnosisModule() {
         if (diseaseName.includes('unknown') || data.prediction?.confidence < 0.3) {
           setShowUnknownModal(true);
         } else {
-          toast.success("Analysis complete");
+          toast.success(t('analysisCompleteToast'));
         }
       } else {
-        toast.error(data.error || "Failed to analyze image");
+        toast.error(data.error || t('failedAnalyzeImage'));
       }
     } catch (err) {
-      toast.error("Network error. Ensure backend is running.");
+      toast.error(t('networkErrorBackend'));
     } finally {
       setIsLoading(false);
     }
@@ -249,8 +251,8 @@ export function AIDiagnosisModule() {
       <Card className="p-6 relative">
         <div className="flex items-center justify-between mb-4">
           <div>
-            <h3 className="font-semibold text-gray-900 dark:text-white">AI Disease Diagnosis</h3>
-            <p className="text-sm text-gray-500 dark:text-gray-400">AI රෝග විනිශ්චය පද්ධතිය</p>
+            <h3 className="font-semibold text-gray-900 dark:text-white">{t('aiDiseaseDiagnosis')}</h3>
+            <p className="text-sm text-gray-500 dark:text-gray-400">{t('aiDiseaseDiagnosisSub')}</p>
           </div>
           <Leaf className="w-8 h-8 text-[#2E7D32]" />
         </div>
@@ -263,8 +265,8 @@ export function AIDiagnosisModule() {
                 <Brain className="w-6 h-6 text-purple-600 dark:text-purple-400 animate-pulse" />
               </div>
               <div>
-                <h4 className="font-extrabold text-gray-900 dark:text-white text-base">Classifier Model Settings</h4>
-                <p className="text-xs text-gray-500 dark:text-gray-400">Manage and switch the active leaf classification AI model</p>
+                <h4 className="font-extrabold text-gray-900 dark:text-white text-base">{t('classifierModelSettings')}</h4>
+                <p className="text-xs text-gray-500 dark:text-gray-400">{t('classifierModelSettingsSub')}</p>
               </div>
             </div>
 
@@ -279,14 +281,14 @@ export function AIDiagnosisModule() {
                   <span className={`relative inline-flex rounded-full h-2 w-2 ${modelHealth === 'online' ? 'bg-green-500' : modelHealth === 'loading' ? 'bg-yellow-500 animate-pulse' : 'bg-red-500'}`}></span>
                 </span>
                 <span className="font-bold uppercase tracking-wider text-gray-600 dark:text-gray-400">
-                  Model Status: <span className={modelHealth === 'online' ? 'text-green-600 dark:text-green-400' : 'text-red-500'}>{modelHealth}</span>
+                  {t('modelStatusLabel')} <span className={modelHealth === 'online' ? 'text-green-600 dark:text-green-400' : 'text-red-500'}>{modelHealth}</span>
                 </span>
               </div>
 
               {/* Model Switcher Select dropdown */}
               {availableModels.length > 0 && (
                 <div className="flex items-center gap-2">
-                  <span className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider hidden sm:inline">Switch Active Model:</span>
+                  <span className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider hidden sm:inline">{t('switchActiveModel')}</span>
                   <select
                     onChange={(e) => handleModelSwitch(e.target.value)}
                     value={modelInfo?.current_file || ''}
@@ -308,14 +310,14 @@ export function AIDiagnosisModule() {
           {modelInfo && (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-4 pt-4 border-t border-gray-200/50 dark:border-gray-700/50">
               <div className="bg-white dark:bg-gray-800/60 p-3 rounded-xl border border-gray-100 dark:border-gray-700/40 flex justify-between items-center text-xs">
-                <span className="text-gray-500 dark:text-gray-400 font-semibold">Active File</span>
+                <span className="text-gray-500 dark:text-gray-400 font-semibold">{t('activeFile')}</span>
                 <span className="font-black text-purple-600 dark:text-purple-400 tracking-wide font-mono truncate max-w-[190px]" title={modelInfo.current_file}>
                   {modelInfo.current_file}
                 </span>
               </div>
               <div className="bg-white dark:bg-gray-800/60 p-3 rounded-xl border border-gray-100 dark:border-gray-700/40 flex justify-between items-center text-xs">
-                <span className="text-gray-500 dark:text-gray-400 font-semibold">Supported Classes</span>
-                <span className="font-bold text-gray-900 dark:text-white">{modelInfo.num_classes} categories</span>
+                <span className="text-gray-500 dark:text-gray-400 font-semibold">{t('supportedClasses')}</span>
+                <span className="font-bold text-gray-900 dark:text-white">{modelInfo.num_classes} {t('categoriesLabel')}</span>
               </div>
             </div>
           )}
@@ -330,11 +332,11 @@ export function AIDiagnosisModule() {
                 className="border-2 border-dashed border-gray-300 dark:border-gray-700 rounded-lg p-6 text-center bg-gray-50 dark:bg-gray-800/50 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors cursor-pointer flex-1 flex flex-col items-center justify-center min-h-[250px]"
               >
                 <Upload className="w-12 h-12 text-gray-400 dark:text-gray-500 mx-auto mb-3" />
-                <p className="font-medium text-gray-700 dark:text-gray-200 mb-1">Upload Leaf Image</p>
-                <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">ලීෆ් රූපයක් උඩුගත කරන්න</p>
+                <p className="font-medium text-gray-700 dark:text-gray-200 mb-1">{t('uploadLeafImage')}</p>
+                <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">{t('uploadLeafImageSub')}</p>
                 <p className="text-xs text-gray-400 dark:text-gray-500 mt-3">
-                  Click to browse<br />
-                  Supported: JPG, PNG (Max 10MB)
+                  {t('clickToBrowse')}<br />
+                  {t('supportedFormatsDisclaimer')}
                 </p>
               </div>
             ) : (
@@ -342,14 +344,14 @@ export function AIDiagnosisModule() {
                 <button
                   onClick={clearSelection}
                   className="absolute top-2 right-2 p-1.5 bg-red-500 text-white rounded-full hover:bg-red-600 z-10 transition-colors animate-in fade-in zoom-in-50"
-                  title="Clear image"
+                  title={t('clearImage')}
                 >
                   <X className="w-4 h-4" />
                 </button>
                 <button
                   onClick={() => setIsMaximized(true)}
                   className="absolute top-2 left-2 p-1.5 bg-black/60 backdrop-blur-md text-white rounded-full hover:bg-black/80 z-10 transition-colors shadow-md flex items-center justify-center animate-in fade-in zoom-in-50"
-                  title="Maximize image"
+                  title={t('maximizeImage')}
                 >
                   <Maximize2 className="w-4 h-4" />
                 </button>
@@ -369,7 +371,7 @@ export function AIDiagnosisModule() {
                           onClick={() => setShowHeatmap(!showHeatmap)}
                           className="absolute bottom-2 right-2 px-3 py-1.5 bg-black/60 backdrop-blur-md text-white rounded-full hover:bg-black/80 z-10 transition-colors text-xs font-bold flex items-center gap-2 shadow-lg"
                         >
-                          {showHeatmap ? <><EyeOff className="w-3.5 h-3.5" /> Hide Heatmap</> : <><Eye className="w-3.5 h-3.5" /> Show AI Heatmap</>}
+                          {showHeatmap ? <><EyeOff className="w-3.5 h-3.5" /> {t('hideHeatmap')}</> : <><Eye className="w-3.5 h-3.5" /> {t('showHeatmap')}</>}
                         </button>
                       )}
                     </>
@@ -393,10 +395,10 @@ export function AIDiagnosisModule() {
             >
               {isLoading ? (
                 <span className="flex items-center gap-2">
-                  <Loader2 className="w-5 h-5 animate-spin" /> Analyzing Image...
+                  <Loader2 className="w-5 h-5 animate-spin" /> {t('analyzingImage')}
                 </span>
               ) : (
-                "Analyze Disease"
+                t('analyzeDisease')
               )}
             </Button>
           </div>
@@ -410,8 +412,8 @@ export function AIDiagnosisModule() {
                     <CircleCheck className="w-6 h-6 text-green-600 dark:text-green-400" />
                   </div>
                   <div>
-                    <h4 className="font-extrabold text-green-900 dark:text-green-300 text-lg">Analysis Complete</h4>
-                    <p className="text-xs font-medium text-green-700 dark:text-green-500">Job ID: {analysisResult.id}</p>
+                    <h4 className="font-extrabold text-green-900 dark:text-green-300 text-lg">{t('analysisComplete')}</h4>
+                    <p className="text-xs font-medium text-green-700 dark:text-green-500">{t('jobId')} {analysisResult.id}</p>
                   </div>
                 </div>
 
@@ -419,11 +421,11 @@ export function AIDiagnosisModule() {
                 <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-green-100 dark:border-green-900/50 p-5 mb-4 relative overflow-hidden">
                   <div className="absolute top-0 right-0 p-3">
                     <span className={`px-2.5 py-1 text-[10px] font-bold rounded-full ${analysisResult.prediction?.severity === 'HIGH' ? 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-400' : 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/40 dark:text-yellow-400'}`}>
-                      {analysisResult.prediction?.severity || 'UNKNOWN'} SEVERITY
+                      {analysisResult.prediction?.severity || 'UNKNOWN'} {t('severitySuffix')}
                     </span>
                   </div>
 
-                  <span className="text-xs font-bold text-gray-500 dark:text-gray-400 tracking-wider uppercase mb-1 block">Detected Condition</span>
+                  <span className="text-xs font-bold text-gray-500 dark:text-gray-400 tracking-wider uppercase mb-1 block">{t('detectedCondition')}</span>
                   <span className="text-xl font-black text-gray-900 dark:text-white block mb-4">
                     {analysisResult.prediction?.disease_name || 'Processing...'}
                   </span>
@@ -431,7 +433,7 @@ export function AIDiagnosisModule() {
                   {/* Confidence Score */}
                   <div>
                     <div className="flex items-center justify-between mb-1.5">
-                      <span className="text-xs font-bold text-gray-600 dark:text-gray-400">AI Confidence Score</span>
+                      <span className="text-xs font-bold text-gray-600 dark:text-gray-400">{t('aiConfidenceScore')}</span>
                       <span className="text-sm font-black text-[#2E7D32] dark:text-green-400">
                         {((analysisResult.prediction?.confidence || 0) * 100).toFixed(1)}%
                       </span>
@@ -446,7 +448,7 @@ export function AIDiagnosisModule() {
 
                   {/* AI Model Details */}
                   <div className="mt-4 pt-3 border-t border-gray-100 dark:border-gray-700 flex justify-between items-center text-xs text-gray-500 dark:text-gray-400">
-                    <span className="font-semibold">AI Prediction Model:</span>
+                    <span className="font-semibold">{t('aiPredictionModel')}</span>
                     <span className="font-bold text-green-700 dark:text-green-400">
                       {analysisResult.prediction?.model_version || 'Watermelon-V1 (v1.0.0)'}
                     </span>
@@ -457,16 +459,16 @@ export function AIDiagnosisModule() {
 
                 <div className="flex gap-3 mt-auto">
                   <Button className="flex-1 bg-white dark:bg-gray-800 text-[#2E7D32] dark:text-green-400 border-2 border-[#2E7D32] dark:border-green-800 hover:bg-green-50 dark:hover:bg-gray-700 shadow-sm font-bold" onClick={() => clearSelection()}>
-                    New Scan
+                    {t('newScanButton')}
                   </Button>
                 </div>
               </div>
             ) : (
               <div className="border-2 border-dashed border-gray-200 dark:border-gray-700 rounded-xl p-6 bg-gray-50 dark:bg-gray-800/50 flex-1 flex flex-col items-center justify-center text-center">
                 <Leaf className="w-12 h-12 text-gray-300 dark:text-gray-600 mb-3 animate-pulse" />
-                <p className="text-gray-500 dark:text-gray-400 font-medium text-lg">Awaiting Image</p>
+                <p className="text-gray-500 dark:text-gray-400 font-medium text-lg">{t('awaitingImage')}</p>
                 <p className="text-gray-400 dark:text-gray-500 text-sm max-w-[250px] mt-1">
-                  Upload a clear picture of an infected crop leaf to see the AI analysis here
+                  {t('awaitingImageSub')}
                 </p>
               </div>
             )}
@@ -479,7 +481,7 @@ export function AIDiagnosisModule() {
             <span className="relative inline-flex rounded-full h-3 w-3 bg-blue-500"></span>
           </span>
           <p className="text-xs font-semibold text-blue-800 dark:text-blue-400 tracking-wide">
-            EXTERNAL AI MODEL <span className="opacity-60 font-medium px-2">&bull;</span> ACTIVE MODEL: {analysisResult?.prediction?.model_version || 'Watermelon-V1'} <span className="opacity-60 font-medium px-2">&bull;</span> STATUS: ACTIVE <span className="opacity-60 font-medium px-2">&bull;</span> ENDPOINT: /api/disease/analyze/
+            {t('externalAiModel')} <span className="opacity-60 font-medium px-2">&bull;</span> {t('activeModelLabel')} {analysisResult?.prediction?.model_version || 'Watermelon-V1'} <span className="opacity-60 font-medium px-2">&bull;</span> {t('statusLabelUpper')} ACTIVE <span className="opacity-60 font-medium px-2">&bull;</span> {t('endpointLabel')} /api/disease/analyze/
           </p>
         </div>
 
@@ -501,7 +503,7 @@ export function AIDiagnosisModule() {
         <div className="mt-8 border-t border-gray-100 dark:border-gray-700 pt-6">
           <div className="flex items-center gap-2 mb-4">
             <History className="w-5 h-5 text-gray-500 dark:text-gray-400" />
-            <h4 className="font-bold text-gray-800 dark:text-white">Recent Scans History</h4>
+            <h4 className="font-bold text-gray-800 dark:text-white">{t('recentScansHistory')}</h4>
           </div>
 
           {isLoadingHistory ? (
@@ -509,7 +511,7 @@ export function AIDiagnosisModule() {
               <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
             </div>
           ) : history.length === 0 ? (
-            <p className="text-sm text-gray-500 text-center p-4">No recent scans found.</p>
+            <p className="text-sm text-gray-500 text-center p-4">{t('noRecentScans')}</p>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
               {history.slice(0, 4).map((item: any) => (
@@ -540,7 +542,7 @@ export function AIDiagnosisModule() {
                     {item.prediction?.disease_name || 'N/A'}
                   </div>
                   <div className="text-xs text-gray-500 dark:text-gray-400 flex justify-between items-center mt-1.5 pt-1.5 border-t border-gray-100 dark:border-gray-800">
-                    <span>Confidence:</span>
+                    <span>{t('confidenceLabel')}</span>
                     <span className="font-bold text-[#2E7D32] dark:text-green-400">
                       {item.prediction?.confidence ? `${(item.prediction.confidence * 100).toFixed(1)}%` : '--'}
                     </span>
@@ -595,10 +597,10 @@ export function AIDiagnosisModule() {
               </svg>
             </div>
 
-            <h3 className="text-2xl font-black text-gray-900 dark:text-white mb-2 relative z-10">Unknown Disease Found</h3>
+            <h3 className="text-2xl font-black text-gray-900 dark:text-white mb-2 relative z-10">{t('unknownDiseaseFound')}</h3>
 
             <p className="text-gray-600 dark:text-gray-400 mb-7 text-sm leading-relaxed relative z-10">
-              The AI model could not accurately classify the disease in this picture. Please <strong className="text-gray-900 dark:text-gray-100">contact your supervisor</strong> to perform a manual inspection and for further studying in the lab.
+              {t('unknownDiseaseSub')}
             </p>
 
             <div className="flex flex-col gap-3 relative z-10">
@@ -606,14 +608,14 @@ export function AIDiagnosisModule() {
                 onClick={() => setShowUnknownModal(false)}
                 className="w-full bg-red-600 hover:bg-red-700 text-white font-bold py-6 rounded-xl shadow-lg shadow-red-600/30 transition-all hover:scale-[1.02]"
               >
-                Acknowledge Warning
+                {t('acknowledgeWarning')}
               </Button>
               <Button
                 variant="outline"
                 onClick={() => setShowUnknownModal(false)}
                 className="w-full font-bold py-6 rounded-xl dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
               >
-                Dismiss
+                {t('dismiss')}
               </Button>
             </div>
           </div>
@@ -627,7 +629,7 @@ export function AIDiagnosisModule() {
               onClick={() => setIsMaximized(false)}
               className="absolute -top-12 right-0 p-2 text-white hover:text-gray-300 transition-colors flex items-center gap-1.5 font-bold text-sm bg-black/40 backdrop-blur-md rounded-full px-4 py-2"
             >
-              <X className="w-5 h-5" /> Close
+              <X className="w-5 h-5" /> {t('closeLightbox')}
             </button>
             <div className="bg-white dark:bg-gray-900 p-2 rounded-2xl overflow-hidden w-full h-full flex items-center justify-center shadow-2xl relative border border-gray-200 dark:border-gray-800">
               {(() => {
@@ -645,9 +647,9 @@ export function AIDiagnosisModule() {
 
               {analysisResult && (
                 <div className="absolute bottom-4 left-1/2 -translate-x-1/2 bg-black/80 backdrop-blur-md text-white px-6 py-3 rounded-full flex items-center gap-4 text-xs sm:text-sm font-semibold shadow-xl border border-white/10">
-                  <span>Condition: <strong className="text-green-400">{analysisResult.prediction?.disease_name || 'Healthy'}</strong></span>
+                  <span>{t('conditionLabel')} <strong className="text-green-400">{analysisResult.prediction?.disease_name || 'Healthy'}</strong></span>
                   <span className="opacity-40">|</span>
-                  <span>Confidence: <strong className="text-green-400">{((analysisResult.prediction?.confidence || 0) * 100).toFixed(1)}%</strong></span>
+                  <span>{t('confidenceLabel')} <strong className="text-green-400">{((analysisResult.prediction?.confidence || 0) * 100).toFixed(1)}%</strong></span>
                 </div>
               )}
             </div>

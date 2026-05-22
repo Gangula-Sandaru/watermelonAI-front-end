@@ -3,8 +3,10 @@ import { Card } from './ui/card';
 import { Button } from './ui/button';
 import { MessageSquare, Users, UserCog, Search, Send, FileText, CheckCircle2, Clock, Filter, Phone, Mail, Bell, AlertTriangle } from 'lucide-react';
 import { toast } from 'sonner';
+import { useTranslation } from '../utils/translations';
 
 export const CommunicationModule = () => {
+  const { t, currentLanguage } = useTranslation();
   const [activeTab, setActiveTab] = useState<'farmers' | 'researchers'>('farmers');
   const [selectedContact, setSelectedContact] = useState<any>(null);
   const [newMessage, setNewMessage] = useState('');
@@ -92,12 +94,12 @@ export const CommunicationModule = () => {
         fetchMessages(selectedContact);
       }
     } catch (err) {
-      toast.error("Failed to send message");
+      toast.error(t('failedSendMessage'));
     }
   };
 
   const handleBroadcast = async () => {
-    const msg = prompt("Enter the alert message for your region:");
+    const msg = prompt(t('enterAlertMsg'));
     if (!msg) return;
 
     setIsBroadcasting(true);
@@ -113,10 +115,10 @@ export const CommunicationModule = () => {
       });
 
       if (response.ok) {
-        toast.success("Regional alert broadcasted successfully");
+        toast.success(t('regionalAlertSuccess'));
       }
     } catch (err) {
-      toast.error("Failed to broadcast alert");
+      toast.error(t('failedBroadcastAlert'));
     } finally {
       setIsBroadcasting(false);
     }
@@ -132,14 +134,14 @@ export const CommunicationModule = () => {
             <div className="flex items-center justify-between mb-6">
               <h3 className="font-black text-xl text-gray-900 dark:text-white flex items-center gap-2">
                 <MessageSquare className="text-[#2E7D32]" />
-                Comms Hub
+                {t('commsHub')}
               </h3>
               <Button 
                 onClick={handleBroadcast}
                 className="bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/30 border-none px-3 py-1.5 h-auto text-[10px] font-black uppercase tracking-widest gap-2"
               >
                 <Bell size={14} className="animate-bounce" />
-                Broadcast
+                {t('broadcast')}
               </Button>
             </div>
 
@@ -148,13 +150,13 @@ export const CommunicationModule = () => {
                 onClick={() => setActiveTab('farmers')}
                 className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-xs font-bold transition-all ${activeTab === 'farmers' ? 'bg-card text-[#2E7D32] shadow-sm' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'}`}
               >
-                <Users size={14} /> Farmers
+                <Users size={14} /> {t('farmersLabel')}
               </button>
               <button 
                 onClick={() => setActiveTab('researchers')}
                 className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-xs font-bold transition-all ${activeTab === 'researchers' ? 'bg-card text-[#2E7D32] shadow-sm' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'}`}
               >
-                <UserCog size={14} /> Researchers
+                <UserCog size={14} /> {t('researchersLabel')}
               </button>
             </div>
 
@@ -162,7 +164,7 @@ export const CommunicationModule = () => {
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-500 w-4 h-4" />
               <input 
                 type="text" 
-                placeholder="Search contacts..."
+                placeholder={t('searchContactsPlaceholder')}
                 className="w-full pl-9 pr-4 py-2.5 bg-muted/50 dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-xl text-xs outline-none focus:border-[#2E7D32] transition-all text-gray-900 dark:text-gray-100"
               />
             </div>
@@ -233,7 +235,7 @@ export const CommunicationModule = () => {
               <div className="flex-1 overflow-y-auto p-8 space-y-6 bg-[url('https://www.transparenttextures.com/patterns/pinstripe-light.png')]">
                 <div className="text-center">
                   <span className="text-[10px] font-black text-gray-400 bg-gray-50 px-4 py-1.5 rounded-full border border-gray-100 uppercase tracking-[0.2em]">
-                    End-to-End Encrypted Consultation
+                    {t('encryptedConsultation')}
                   </span>
                 </div>
 
@@ -260,7 +262,7 @@ export const CommunicationModule = () => {
                 {!selectedContact.esc_id ? (
                   <div className="flex items-center justify-center p-4 bg-amber-50 rounded-2xl border border-amber-100 gap-3">
                     <AlertTriangle className="text-amber-500" size={20} />
-                    <p className="text-sm font-bold text-amber-700">No active escalation case for this farmer.</p>
+                    <p className="text-sm font-bold text-amber-700">{t('noActiveEscalationCase')}</p>
                   </div>
                 ) : (
                   <div className="flex items-center gap-4">
@@ -273,7 +275,7 @@ export const CommunicationModule = () => {
                         value={newMessage}
                         onChange={(e) => setNewMessage(e.target.value)}
                         onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()}
-                        placeholder="Type your professional response..."
+                        placeholder={t('typeProfessionalResponse')}
                         className="w-full pl-6 pr-12 py-4 bg-muted border border-gray-100 dark:border-gray-700 rounded-2xl text-sm font-medium outline-none focus:border-[#2E7D32] focus:bg-card transition-all shadow-inner text-gray-900 dark:text-gray-100"
                       />
                       <Button 
@@ -292,9 +294,9 @@ export const CommunicationModule = () => {
               <div className="w-24 h-24 bg-muted rounded-[2.5rem] flex items-center justify-center mb-6 text-gray-400 shadow-inner">
                 <MessageSquare size={48} strokeWidth={1.5} />
               </div>
-              <h3 className="text-xl font-black text-gray-900 dark:text-white mb-2">Regional Communication Hub</h3>
+              <h3 className="text-xl font-black text-gray-900 dark:text-white mb-2">{t('regionalCommsHub')}</h3>
               <p className="text-sm text-gray-500 dark:text-gray-400 max-w-sm font-medium">
-                Select a farmer or researcher from the list to begin a secure consultation or provide diagnostic feedback.
+                {t('selectContactInstruction')}
               </p>
             </div>
           )}

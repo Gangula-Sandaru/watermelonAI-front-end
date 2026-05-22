@@ -4,8 +4,10 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '.
 import { FileText, MapPin, Calendar, Loader2 } from 'lucide-react';
 import { Badge } from './ui/badge';
 import { toast } from 'sonner';
+import { useTranslation } from '../utils/translations';
 
 export function RecentScansTable() {
+  const { t } = useTranslation();
   const [scans, setScans] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -49,12 +51,30 @@ export function RecentScansTable() {
         const data = await response.json();
         setScans(data);
       } else {
-        toast.error("Failed to fetch recent scans.");
+        toast.error(t('failedFetchScans'));
       }
     } catch (error) {
       console.error("Failed to fetch recent scans", error);
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const getSeverityLabel = (severity: string) => {
+    switch (severity?.toUpperCase()) {
+      case 'HIGH': return t('severityHigh');
+      case 'MEDIUM': return t('severityMedium');
+      case 'LOW': return t('severityLow');
+      default: return t('severityUnknown');
+    }
+  };
+
+  const getStatusLabel = (status: string) => {
+    switch (status?.toUpperCase()) {
+      case 'COMPLETED': return t('statusCompleted');
+      case 'PROCESSING': return t('statusProcessing');
+      case 'FAILED': return t('statusFailed');
+      default: return t('statusPendingLabel');
     }
   };
 
@@ -76,8 +96,7 @@ export function RecentScansTable() {
     <Card className="p-6">
       <div className="flex items-center justify-between mb-4">
         <div>
-          <h3 className="font-semibold text-gray-900 dark:text-white">Recent Scans & Diagnostics</h3>
-          <p className="text-sm text-gray-500 dark:text-gray-400">මෑත පරිලෝකන සහ විනිශ්චය</p>
+          <h3 className="font-semibold text-gray-900 dark:text-white">{t('recentScansDiagnostics')}</h3>
         </div>
         <FileText className="w-8 h-8 text-[#2E7D32]" />
       </div>
@@ -86,13 +105,13 @@ export function RecentScansTable() {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead className="w-24">Scan ID</TableHead>
-              <TableHead>Date & Time</TableHead>
-              <TableHead>Location</TableHead>
-              <TableHead>Disease Detected</TableHead>
-              <TableHead className="text-center">Confidence</TableHead>
-              <TableHead className="text-center">Severity</TableHead>
-              <TableHead className="text-center">Status</TableHead>
+              <TableHead className="w-24">{t('scanId')}</TableHead>
+              <TableHead>{t('dateTime')}</TableHead>
+              <TableHead>{t('location')}</TableHead>
+              <TableHead>{t('diseaseDetectedLabel')}</TableHead>
+              <TableHead className="text-center">{t('confidenceLabel')}</TableHead>
+              <TableHead className="text-center">{t('severity')}</TableHead>
+              <TableHead className="text-center">{t('statusLabel')}</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -100,13 +119,13 @@ export function RecentScansTable() {
               <TableRow>
                 <TableCell colSpan={7} className="text-center py-10">
                   <Loader2 className="w-8 h-8 animate-spin text-gray-400 mx-auto mb-2" />
-                  <span className="text-gray-500">Loading recent scans...</span>
+                  <span className="text-gray-500">{t('loadingRecentScans')}</span>
                 </TableCell>
               </TableRow>
             ) : scans.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={7} className="text-center py-10 text-gray-500 dark:text-gray-400">
-                  No recent scans found. Create a new diagnosis to see records here.
+                  {t('noRecentScansFound')}
                 </TableCell>
               </TableRow>
             ) : scans.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage).map((scan) => {
@@ -132,7 +151,7 @@ export function RecentScansTable() {
                   <TableCell>
                     <div className="flex items-center gap-2">
                       <MapPin className="w-4 h-4 text-[#2E7D32]" />
-                      <span className="dark:text-gray-200">{scan.location_name || 'Unknown Field'}</span>
+                      <span className="dark:text-gray-200">{scan.location_name || t('unknownField')}</span>
                     </div>
                   </TableCell>
                   <TableCell>
@@ -145,11 +164,11 @@ export function RecentScansTable() {
                   </TableCell>
                   <TableCell className="text-center">
                     <Badge variant="outline" className={severityColors[severityVal] || severityColors.UNKNOWN}>
-                      {severityVal}
+                      {getSeverityLabel(severityVal)}
                     </Badge>
                   </TableCell>
                   <TableCell className="text-center">
-                    <Badge className={statusColors[scan.status] || statusColors.PENDING}>{scan.status}</Badge>
+                    <Badge className={statusColors[scan.status] || statusColors.PENDING}>{getStatusLabel(scan.status)}</Badge>
                   </TableCell>
                 </TableRow>
               )
@@ -161,7 +180,10 @@ export function RecentScansTable() {
       <div className="mt-4 flex items-center justify-between text-sm text-gray-500">
         {scans.length > 0 ? (
           <p>
-            Showing {(currentPage - 1) * itemsPerPage + 1} to {Math.min(currentPage * itemsPerPage, scans.length)} of {scans.length} recent scans
+            {t('showingRecentScans')
+              .replace('{start}', String((currentPage - 1) * itemsPerPage + 1))
+              .replace('{end}', String(Math.min(currentPage * itemsPerPage, scans.length)))
+              .replace('{total}', String(scans.length))}
           </p>
         ) : (
           <p></p>
@@ -174,17 +196,19 @@ export function RecentScansTable() {
               onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
               disabled={currentPage === 1}
             >
-              Previous
+              {t('previousLabel')}
             </button>
             <span className="font-semibold text-gray-900 dark:text-gray-100 mx-2">
-              Page {currentPage} of {Math.ceil(scans.length / itemsPerPage)}
+              {t('pageOfLabel')
+                .replace('{current}', String(currentPage))
+                .replace('{total}', String(Math.ceil(scans.length / itemsPerPage)))}
             </span>
             <button
               className="px-3 py-1 border dark:border-gray-700 rounded-md hover:bg-gray-50 dark:hover:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed font-medium text-gray-700 dark:text-gray-300"
               onClick={() => setCurrentPage(p => Math.min(Math.ceil(scans.length / itemsPerPage), p + 1))}
               disabled={currentPage >= Math.ceil(scans.length / itemsPerPage)}
             >
-              Next
+              {t('nextLabel')}
             </button>
           </div>
         )}

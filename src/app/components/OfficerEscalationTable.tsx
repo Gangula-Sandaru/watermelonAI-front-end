@@ -23,6 +23,7 @@ import {
   Plus
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { useTranslation } from '../utils/translations';
 
 interface EscalationData {
   id: number;
@@ -40,6 +41,7 @@ interface EscalationData {
 }
 
 export function OfficerEscalationTable({ setActiveSection }: { setActiveSection?: (s: string) => void }) {
+  const { t } = useTranslation();
   const [data, setData] = useState<EscalationData[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -108,25 +110,25 @@ export function OfficerEscalationTable({ setActiveSection }: { setActiveSection?
         })
       });
       if (response.ok) {
-        toast.success("Case marked as resolved");
+        toast.success(t('caseResolvedSuccess'));
         setSelectedRequest(null); // Close modal if open
         fetchData(); // Refresh list
       }
     } catch (error) {
-      toast.error("Failed to resolve case");
+      toast.error(t('failedResolveCase'));
     }
   };
 
   const getStatusBadge = (status: string) => {
     switch (status) {
       case 'PENDING':
-        return <Badge variant="outline" className="bg-yellow-50 text-yellow-700 border-yellow-200">Pending</Badge>;
+        return <Badge variant="outline" className="bg-yellow-50 text-yellow-700 border-yellow-200">{t('statusPending')}</Badge>;
       case 'SENT':
-        return <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">New Request</Badge>;
+        return <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">{t('statusNewRequest')}</Badge>;
       case 'REVIEWING':
-        return <Badge variant="outline" className="bg-purple-50 text-purple-700 border-purple-200 animate-pulse">In Review</Badge>;
+        return <Badge variant="outline" className="bg-purple-50 text-purple-700 border-purple-200 animate-pulse">{t('statusInReview')}</Badge>;
       case 'RESOLVED':
-        return <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">Resolved</Badge>;
+        return <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">{t('statusResolved')}</Badge>;
       default:
         return <Badge variant="outline">{status}</Badge>;
     }
@@ -152,8 +154,8 @@ export function OfficerEscalationTable({ setActiveSection }: { setActiveSection?
         <div className="p-6 border-b border-gray-100 dark:border-gray-700 bg-muted/30">
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div>
-              <h3 className="text-lg font-bold text-gray-900 dark:text-white">Expert Review Queue</h3>
-              <p className="text-sm text-gray-500 dark:text-gray-400">Manage and respond to farmer escalations</p>
+              <h3 className="text-lg font-bold text-gray-900 dark:text-white">{t('expertReviewQueue')}</h3>
+              <p className="text-sm text-gray-500 dark:text-gray-400">{t('manageRespondEscalations')}</p>
             </div>
 
             <div className="flex items-center gap-3">
@@ -161,7 +163,7 @@ export function OfficerEscalationTable({ setActiveSection }: { setActiveSection?
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                 <input
                   type="text"
-                  placeholder="Search requests..."
+                  placeholder={t('searchRequestsPlaceholder')}
                   className="pl-10 pr-4 py-2 bg-background border border-gray-200 dark:border-gray-700 rounded-xl text-sm focus:ring-2 focus:ring-[#2E7D32]/20 focus:border-[#2E7D32] outline-none transition-all w-64 text-gray-900 dark:text-gray-100"
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
@@ -178,12 +180,12 @@ export function OfficerEscalationTable({ setActiveSection }: { setActiveSection?
           <Table>
             <TableHeader className="bg-muted/50">
               <TableRow>
-                <TableHead className="font-bold text-gray-700 dark:text-gray-300">Request ID</TableHead>
-                <TableHead className="font-bold text-gray-700 dark:text-gray-300">Farmer</TableHead>
-                <TableHead className="font-bold text-gray-700 dark:text-gray-300">Diagnosis</TableHead>
-                <TableHead className="font-bold text-gray-700 dark:text-gray-300">Status</TableHead>
-                <TableHead className="font-bold text-gray-700 dark:text-gray-300">Time</TableHead>
-                <TableHead className="text-right font-bold text-gray-700 dark:text-gray-300">Actions</TableHead>
+                <TableHead className="font-bold text-gray-700 dark:text-gray-300">{t('requestId')}</TableHead>
+                <TableHead className="font-bold text-gray-700 dark:text-gray-300">{t('farmerLabel')}</TableHead>
+                <TableHead className="font-bold text-gray-700 dark:text-gray-300">{t('diagnosisLabel')}</TableHead>
+                <TableHead className="font-bold text-gray-700 dark:text-gray-300">{t('statusLabel')}</TableHead>
+                <TableHead className="font-bold text-gray-700 dark:text-gray-300">{t('timeLabel')}</TableHead>
+                <TableHead className="text-right font-bold text-gray-700 dark:text-gray-300">{t('actionsLabel')}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -206,7 +208,7 @@ export function OfficerEscalationTable({ setActiveSection }: { setActiveSection?
                     <TableCell>
                       <div className="flex flex-col">
                         <span className="text-sm font-medium text-gray-900 dark:text-gray-200">{row.scan_details.disease}</span>
-                        <span className="text-[10px] text-gray-500 dark:text-gray-400">AI Confidence: {row.scan_details.confidence}</span>
+                        <span className="text-[10px] text-gray-500 dark:text-gray-400">{t('aiConfidenceLabel')}: {row.scan_details.confidence}</span>
                       </div>
                     </TableCell>
                     <TableCell>
@@ -232,7 +234,7 @@ export function OfficerEscalationTable({ setActiveSection }: { setActiveSection?
                           className="h-8 gap-1.5 text-[#2E7D32] hover:bg-[#2E7D32]/10 dark:hover:bg-[#2E7D32]/20 rounded-lg"
                         >
                           <ExternalLink size={14} />
-                          View
+                          {t('viewLabel')}
                         </Button>
                         {row.status !== 'RESOLVED' && (
                           <Button
@@ -242,7 +244,7 @@ export function OfficerEscalationTable({ setActiveSection }: { setActiveSection?
                             className="h-8 gap-1.5 text-green-600 dark:text-green-400 hover:text-green-700 hover:bg-green-50 dark:hover:bg-green-900/20 rounded-lg"
                           >
                             <CheckCircle2 size={14} />
-                            Resolve
+                            {t('resolveLabel')}
                           </Button>
                         )}
                       </div>
@@ -254,7 +256,7 @@ export function OfficerEscalationTable({ setActiveSection }: { setActiveSection?
                   <TableCell colSpan={6} className="h-32 text-center text-gray-500">
                     <div className="flex flex-col items-center gap-2">
                       <AlertCircle className="w-8 h-8 opacity-20" />
-                      <p>No escalation requests found</p>
+                      <p>{t('noEscalationsFound')}</p>
                     </div>
                   </TableCell>
                 </TableRow>
@@ -265,11 +267,11 @@ export function OfficerEscalationTable({ setActiveSection }: { setActiveSection?
 
         <div className="p-4 border-t border-gray-100 dark:border-gray-700 bg-muted/30 flex items-center justify-between">
           <p className="text-xs text-gray-500">
-            Showing {filteredData.length} of {data.length} total escalations
+            {t('showingEscalations').replace('{count}', String(filteredData.length)).replace('{total}', String(data.length))}
           </p>
           <div className="flex gap-2">
-            <Button variant="outline" size="sm" disabled className="rounded-lg h-8 px-3">Previous</Button>
-            <Button variant="outline" size="sm" disabled className="rounded-lg h-8 px-3">Next</Button>
+            <Button variant="outline" size="sm" disabled className="rounded-lg h-8 px-3">{t('previous')}</Button>
+            <Button variant="outline" size="sm" disabled className="rounded-lg h-8 px-3">{t('next')}</Button>
           </div>
         </div>
       </Card>
@@ -285,13 +287,13 @@ export function OfficerEscalationTable({ setActiveSection }: { setActiveSection?
                 {selectedRequest.scan_details.image ? (
                   <img
                     src={selectedRequest.scan_details.image}
-                    alt="Plant Issue"
+                    alt={t('diagnosisLabel')}
                     className="w-full h-full object-cover"
                   />
                 ) : (
                   <div className="w-full h-full flex flex-col items-center justify-center text-gray-400">
                     <AlertCircle size={48} className="opacity-20 mb-2" />
-                    <p className="text-xs font-bold uppercase tracking-widest">No Image Provided</p>
+                    <p className="text-xs font-bold uppercase tracking-widest">{t('noImageProvided')}</p>
                   </div>
                 )}
                 <div className="absolute top-4 left-4">
@@ -303,9 +305,9 @@ export function OfficerEscalationTable({ setActiveSection }: { setActiveSection?
               <div className="p-8 flex flex-col h-full">
                 <div className="flex items-center justify-between mb-6">
                   <div>
-                    <h4 className="text-2xl font-black text-gray-900 dark:text-white leading-tight">Case Details</h4>
+                    <h4 className="text-2xl font-black text-gray-900 dark:text-white leading-tight">{t('caseDetailsTitle')}</h4>
                     <p className="text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest mt-1">
-                      Request #{selectedRequest.scan_details.uuid}
+                      {t('requestId')} #{selectedRequest.scan_details.uuid}
                     </p>
                   </div>
                   <Button
@@ -319,30 +321,30 @@ export function OfficerEscalationTable({ setActiveSection }: { setActiveSection?
 
                 <div className="space-y-6 flex-1">
                   <div>
-                    <label className="text-[10px] font-black text-[#2E7D32] uppercase tracking-[0.2em] mb-2 block">Farmer Information</label>
+                    <label className="text-[10px] font-black text-[#2E7D32] uppercase tracking-[0.2em] mb-2 block">{t('farmerInformation')}</label>
                     <div className="flex items-center gap-3 bg-muted/50 p-3 rounded-2xl border border-gray-100 dark:border-gray-700">
                       <div className="w-10 h-10 rounded-xl bg-card shadow-sm flex items-center justify-center text-[#2E7D32] border border-gray-100 dark:border-gray-700">
                         <User size={20} />
                       </div>
                       <div>
                         <p className="font-bold text-gray-900 dark:text-white">{selectedRequest.farmer_name}</p>
-                        <p className="text-[10px] text-gray-500 dark:text-gray-400 font-medium">Regional Farmer Account</p>
+                        <p className="text-[10px] text-gray-500 dark:text-gray-400 font-medium">{t('regionalFarmerAccount')}</p>
                       </div>
                     </div>
                   </div>
 
                   <div>
-                    <label className="text-[10px] font-black text-[#2E7D32] uppercase tracking-[0.2em] mb-2 block">Officer Review</label>
+                    <label className="text-[10px] font-black text-[#2E7D32] uppercase tracking-[0.2em] mb-2 block">{t('officerReviewLabel')}</label>
                     <div className="space-y-3">
                       <div className="flex gap-2 items-center mb-1">
                         <div className="flex-1">
                           <select
-                            value={diseaseTag}
-                            onChange={(e) => setDiseaseTag(e.target.value)}
-                            className="w-full bg-muted/50 border border-gray-100 dark:border-gray-700 rounded-2xl p-3 text-sm focus:ring-2 focus:ring-[#2E7D32]/20 focus:border-[#2E7D32] outline-none transition-all text-gray-900 dark:text-gray-100 appearance-none"
-                            style={{ backgroundImage: 'url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22292.4%22%20height%3D%22292.4%22%3E%3Cpath%20fill%3D%22%23131313%22%20d%3D%22M287%2069.4a17.6%2017.6%200%200%200-13-5.4H18.4c-5%200-9.3%201.8-12.9%205.4A17.6%2017.6%200%200%200%200%2082.2c0%205%201.8%209.3%205.4%2012.9l128%20127.9c3.6%203.6%207.8%205.4%2012.8%205.4s9.2-1.8%2012.8-5.4L287%2095c3.5-3.5%205.4-7.8%205.4-12.8%200-5-1.9-9.2-5.5-12.8z%22%2F%3E%3C%2Fsvg%3E")', backgroundRepeat: 'no-repeat', backgroundPosition: 'right .7rem top 50%', backgroundSize: '.65rem auto' }}
+                             value={diseaseTag}
+                             onChange={(e) => setDiseaseTag(e.target.value)}
+                             className="w-full bg-muted/50 border border-gray-100 dark:border-gray-700 rounded-2xl p-3 text-sm focus:ring-2 focus:ring-[#2E7D32]/20 focus:border-[#2E7D32] outline-none transition-all text-gray-900 dark:text-gray-100 appearance-none"
+                             style={{ backgroundImage: 'url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22292.4%22%20height%3D%22292.4%22%3E%3Cpath%20fill%3D%22%23131313%22%20d%3D%22M287%2069.4a17.6%2017.6%200%200%200-13-5.4H18.4c-5%200-9.3%201.8-12.9%205.4A17.6%2017.6%200%200%200%200%2082.2c0%205%201.8%209.3%205.4%2012.9l128%20127.9c3.6%203.6%207.8%205.4%2012.8%205.4s9.2-1.8%2012.8-5.4L287%2095c3.5-3.5%205.4-7.8%205.4-12.8%200-5-1.9-9.2-5.5-12.8z%22%2F%3E%3C%2Fsvg%3E")', backgroundRepeat: 'no-repeat', backgroundPosition: 'right .7rem top 50%', backgroundSize: '.65rem auto' }}
                           >
-                            <option value="" disabled>Select verified disease classification...</option>
+                            <option value="" disabled>{t('selectVerifiedDisease')}</option>
                             {diseaseTags.map(tag => (
                               <option key={tag} value={tag}>{tag}</option>
                             ))}
@@ -363,13 +365,13 @@ export function OfficerEscalationTable({ setActiveSection }: { setActiveSection?
                         </Button>
                       </div>
                       <textarea
-                        placeholder="Add your review comments here..."
+                        placeholder={t('reviewCommentsPlaceholder')}
                         className="w-full bg-muted/50 border border-gray-100 dark:border-gray-700 rounded-2xl p-3 text-sm min-h-[80px] focus:ring-2 focus:ring-[#2E7D32]/20 focus:border-[#2E7D32] outline-none transition-all text-gray-900 dark:text-gray-100"
                         value={reviewComments}
                         onChange={(e) => setReviewComments(e.target.value)}
                       />
                       <textarea
-                        placeholder="Final Conclusion / Treatment Plan..."
+                        placeholder={t('finalConclusionPlaceholder')}
                         className="w-full bg-[#2E7D32]/5 border border-[#2E7D32]/10 rounded-2xl p-3 text-sm font-bold text-gray-900 dark:text-white min-h-[60px] focus:ring-2 focus:ring-[#2E7D32]/20 focus:border-[#2E7D32] outline-none transition-all"
                         value={finalConclusion}
                         onChange={(e) => setFinalConclusion(e.target.value)}
@@ -378,9 +380,9 @@ export function OfficerEscalationTable({ setActiveSection }: { setActiveSection?
                   </div>
 
                   <div>
-                    <label className="text-[10px] font-black text-[#2E7D32] uppercase tracking-[0.2em] mb-2 block">Farmer Notes</label>
+                    <label className="text-[10px] font-black text-[#2E7D32] uppercase tracking-[0.2em] mb-2 block">{t('farmerNotesLabel')}</label>
                     <div className="bg-green-50/30 dark:bg-[#2E7D32]/10 p-4 rounded-2xl border border-green-100 dark:border-[#2E7D32]/20 italic text-sm text-gray-700 dark:text-gray-300 leading-relaxed max-h-32 overflow-y-auto">
-                      "{selectedRequest.notes || "No additional description provided by the farmer."}"
+                      "{selectedRequest.notes || t('noFarmerNotes')}"
                     </div>
                   </div>
                 </div>
@@ -397,7 +399,7 @@ export function OfficerEscalationTable({ setActiveSection }: { setActiveSection?
                     }}
                   >
                     <MessageSquare size={18} className="mr-2" />
-                    Chat
+                    {t('chatButtonLabel')}
                   </Button>
                   {selectedRequest.status !== 'RESOLVED' && (
                     <Button
@@ -406,7 +408,7 @@ export function OfficerEscalationTable({ setActiveSection }: { setActiveSection?
                       onClick={() => handleResolve(selectedRequest.id)}
                     >
                       <CheckCircle2 size={18} className="mr-2 text-green-600" />
-                      Resolve Case
+                      {t('resolveCaseButton')}
                     </Button>
                   )}
                 </div>
@@ -421,10 +423,10 @@ export function OfficerEscalationTable({ setActiveSection }: { setActiveSection?
         <div className="fixed inset-0 z-[3000] flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setShowAddDiseaseModal(false)} />
           <Card className="relative w-full max-w-sm bg-card shadow-2xl rounded-2xl p-6 border-none animate-in zoom-in-95 duration-200">
-            <h4 className="text-lg font-bold text-gray-900 dark:text-white mb-4">Add New Disease</h4>
+            <h4 className="text-lg font-bold text-gray-900 dark:text-white mb-4">{t('addNewDiseaseTitle')}</h4>
             <input
               type="text"
-              placeholder="Enter new disease name..."
+              placeholder={t('enterDiseaseNamePlaceholder')}
               value={newDiseaseName}
               onChange={(e) => setNewDiseaseName(e.target.value)}
               autoFocus
@@ -439,7 +441,7 @@ export function OfficerEscalationTable({ setActiveSection }: { setActiveSection?
                 }}
                 className="rounded-xl"
               >
-                Cancel
+                {t('cancel')}
               </Button>
               <Button
                 onClick={() => {
@@ -452,7 +454,7 @@ export function OfficerEscalationTable({ setActiveSection }: { setActiveSection?
                 }}
                 className="bg-[#2E7D32] hover:bg-[#1B5E20] text-white rounded-xl"
               >
-                Add Disease
+                {t('addDiseaseButton')}
               </Button>
             </div>
           </Card>
