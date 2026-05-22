@@ -1,4 +1,4 @@
-import { useState, useEffect, useLayoutEffect } from 'react';
+import { useState, useEffect, useLayoutEffect, useRef } from 'react';
 import { BarChart2 } from 'lucide-react';
 import { Sidebar } from './components/Sidebar';
 import { WeatherRiskWidget } from './components/WeatherRiskWidget';
@@ -48,6 +48,7 @@ export default function App() {
 
 
   const [userData, setUserData] = useState<{ username?: string, email?: string, role?: string } | null>(null);
+  const [isProfileLoading, setIsProfileLoading] = useState(isAuthenticated);
 
   useEffect(() => {
     if (isAuthenticated) {
@@ -61,12 +62,13 @@ export default function App() {
           });
           if (response.status === 401) {
             handleLogout(true);
+            setIsProfileLoading(false);
             return;
           }
           if (response.ok) {
             const data = await response.json();
             setUserData(data);
-            
+
             // Apply theme preference from profile and save to localStorage
             if (data.theme_preference) {
               localStorage.setItem('theme_preference', data.theme_preference);
@@ -77,19 +79,39 @@ export default function App() {
               }
             }
 
-            // Auto-redirect if admin to AI Training
-            const isAdminUser = data.role === 'admin' || data.role === 'superadmin' || data.is_superuser === true;
-            if (isAdminUser && activeSection === 'dashboard') {
-              setActiveSection('ai-training');
+            // Apply role-based section validation
+            const roleLower = data.role?.toLowerCase() || '';
+            const isAdminUser = roleLower === 'admin' || roleLower === 'superadmin' || data.is_superuser === true;
+            const isOfficerUser = roleLower.includes('officer');
+            const isResearcherUser = roleLower === 'researcher';
+
+            let allowedSections: string[] = [];
+            if (isAdminUser) {
+              allowedSections = ['dashboard', 'ai-training', 'settings'];
+            } else if (isOfficerUser) {
+              allowedSections = ['dashboard', 'communications', 'expert-review', 'data', 'settings'];
+            } else if (isResearcherUser) {
+              allowedSections = ['satellite', 'ai-training', 'data', 'settings'];
+            } else { // Farmer
+              allowedSections = ['dashboard', 'satellite', 'diagnosis', 'communications', 'escalate', 'data', 'settings'];
+            }
+
+            if (!allowedSections.includes(activeSection)) {
+               setActiveSection(isAdminUser ? 'ai-training' : (isResearcherUser ? 'satellite' : 'dashboard'));
+            } else if (isAdminUser && activeSection === 'dashboard') {
+               setActiveSection('ai-training');
             }
           }
         } catch (error) {
           console.error("Failed to fetch profile", error);
+        } finally {
+          setIsProfileLoading(false);
         }
       };
       fetchProfile();
     } else {
       setUserData(null);
+      setIsProfileLoading(false);
     }
   }, [isAuthenticated]);
 
@@ -122,12 +144,70 @@ export default function App() {
 
   const [authMode, setAuthMode] = useState<'landing' | 'login' | 'register' | 'forgot-password' | 'reset-password' | 'verify-email'>(getInitialAuthMode());
   const [activeSection, setActiveSection] = useState(getInitialSection());
+  const [globalUnreadBroadcasts, setGlobalUnreadBroadcasts] = useState(0);
+  const broadcastsLenRef = useRef(0);
+
+  // Clear unread badge when entering communications
+  useEffect(() => {
+    if (activeSection === 'communications') {
+      setGlobalUnreadBroadcasts(0);
+    }
+  }, [activeSection]);
+
+  // Global polling for broadcasts
+  useEffect(() => {
+    if (!isAuthenticated || !userData) return;
+    const role = userData.role?.toLowerCase() || '';
+    if (role.includes('officer') || role.includes('researcher')) return;
+
+    const playReceiveSound = () => {
+      try {
+        const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+        if (!AudioContextClass) return;
+        const ctx = new AudioContextClass();
+        const osc = ctx.createOscillator();
+        const gainNode = ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(600, ctx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(800, ctx.currentTime + 0.15);
+        gainNode.gain.setValueAtTime(0.1, ctx.currentTime);
+        gainNode.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.15);
+        osc.connect(gainNode);
+        gainNode.connect(ctx.destination);
+        osc.start();
+        osc.stop(ctx.currentTime + 0.15);
+      } catch(e) {}
+    };
+
+    const fetchGlobalBroadcasts = async () => {
+      try {
+        const token = localStorage.getItem('access_token');
+        if (!token) return;
+        const response = await fetch('http://127.0.0.1:8000/api/escalation/broadcast/', {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (response.ok) {
+          const data = await response.json();
+          if (broadcastsLenRef.current > 0 && data.length > broadcastsLenRef.current) {
+             toast.success(t('newBroadcastReceived') || "New Regional Broadcast Received!");
+             playReceiveSound();
+             setGlobalUnreadBroadcasts(prev => prev + (data.length - broadcastsLenRef.current));
+          }
+          broadcastsLenRef.current = data.length;
+        }
+      } catch (err) {}
+    };
+
+    fetchGlobalBroadcasts();
+    const interval = setInterval(fetchGlobalBroadcasts, 10000);
+    return () => clearInterval(interval);
+  }, [isAuthenticated, userData, t]);
 
   // Apply theme immediately from localStorage even before profile loads
   // But keep Login/Register/Landing always in light mode as requested
   useLayoutEffect(() => {
     const isAuthPage = !isAuthenticated;
-    
+
     if (isAuthPage) {
       document.documentElement.classList.remove('dark');
       return;
@@ -184,6 +264,7 @@ export default function App() {
     localStorage.removeItem('access_token');
     setIsAuthenticated(false);
     setAuthMode('login');
+    setActiveSection('dashboard');
     if (sessionExpired) {
       toast.error("Session expired. Please login again.", {
         description: "Your secure session has timed out.",
@@ -240,6 +321,17 @@ export default function App() {
   const role = userData?.role?.toLowerCase();
   const isAdmin = role === 'admin' || role === 'superadmin' || userData?.is_superuser === true;
 
+  if (isProfileLoading) {
+    return (
+      <div className="flex h-screen items-center justify-center bg-gray-50 dark:bg-gray-900">
+        <div className="flex flex-col items-center">
+          <div className="w-12 h-12 border-4 border-[#2E7D32] border-t-transparent rounded-full animate-spin mb-4 shadow-lg"></div>
+          <p className="text-gray-500 dark:text-gray-400 font-bold tracking-widest text-xs uppercase animate-pulse">Loading Profile</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="flex h-screen bg-gray-50 dark:bg-gray-900 overflow-hidden text-gray-900 dark:text-gray-100">
       {/* Sidebar Navigation */}
@@ -248,6 +340,7 @@ export default function App() {
         setActiveSection={setActiveSection}
         onLogout={handleLogout}
         userData={userData}
+        unreadBroadcastCount={globalUnreadBroadcasts}
       />
 
       {/* Main Content Area */}
@@ -286,9 +379,9 @@ export default function App() {
                   <p className="text-xs text-[#2E7D32] font-semibold uppercase tracking-wider">
                     {isAdmin ? 'System Administrator' : (
                       userData?.role === 'agri_officer' || userData?.role === 'officer' ? 'Agri Officer Account' :
-                      userData?.role === 'researcher' ? 'Researcher Account' :
-                      userData?.role === 'farmer' ? 'Farmer Account' :
-                      'WatermelonAI User'
+                        userData?.role === 'researcher' ? 'Researcher Account' :
+                          userData?.role === 'farmer' ? 'Farmer Account' :
+                            'WatermelonAI User'
                     )}
                   </p>
                 </div>
@@ -314,18 +407,15 @@ export default function App() {
           {activeSection === 'dashboard' && (
             <div className="space-y-8">
               <AnalyticsDashboard userData={userData} />
-              
+
               {!userData?.role?.toLowerCase()?.includes('officer') && !userData?.role?.toLowerCase()?.includes('researcher') && (
                 <>
                   <div className="grid grid-cols-3 gap-6">
-                    <div className="col-span-2">
-                      <SatelliteMonitoringView />
-                    </div>
-                    <div>
+                    <div className="col-span-3">
                       <WeatherRiskWidget />
                     </div>
                   </div>
-                  <RecentScansTable />
+                  {/* <RecentScansTable /> */}
                 </>
               )}
             </div>
@@ -367,10 +457,10 @@ export default function App() {
             <EscalationModule />
           )}
 
-          {activeSection === 'communications' && (
-            <CommunicationModule />
+          {activeSection === 'communications' && !isAdmin && (
+            <CommunicationModule userData={userData} />
           )}
-          
+
           {activeSection === 'expert-review' && (
             <OfficerEscalationTable setActiveSection={setActiveSection} />
           )}

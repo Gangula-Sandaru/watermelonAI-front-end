@@ -1,13 +1,51 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Card } from './ui/card';
 import { Button } from './ui/button';
-import { MessageSquare, Users, UserCog, Search, Send, FileText, CheckCircle2, Clock, Filter, Phone, Mail, Bell, AlertTriangle } from 'lucide-react';
+import { MessageSquare, Users, UserCog, Search, Send, FileText, CheckCircle2, Clock, Filter, Phone, Mail, Bell, AlertTriangle, Check, CheckCheck, X, Trash2, Edit3 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useTranslation } from '../utils/translations';
 
-export const CommunicationModule = () => {
+interface CommunicationModuleProps {
+  userData?: { username?: string, email?: string, role?: string } | null;
+}
+
+export const CommunicationModule = ({ userData }: CommunicationModuleProps) => {
   const { t, currentLanguage } = useTranslation();
-  const [activeTab, setActiveTab] = useState<'farmers' | 'researchers'>('farmers');
+  
+  const role = userData?.role?.toLowerCase() || 'farmer';
+  const isOfficer = role.includes('officer') || role.includes('admin');
+  const isResearcher = role.includes('researcher');
+
+  const [activeTab, setActiveTab] = useState<'farmers' | 'researchers' | 'officers' | 'broadcasts'>(() => {
+    if (isOfficer) return 'farmers';
+    if (isResearcher) return 'officers';
+    return 'farmers';
+  });
+
+  useEffect(() => {
+    if (isOfficer) {
+      setActiveTab('farmers');
+    } else if (isResearcher) {
+      setActiveTab('officers');
+    } else {
+      setActiveTab('farmers');
+    }
+  }, [role]);
+
+  const availableTabs: { id: 'farmers' | 'researchers' | 'officers' | 'broadcasts', label: string, icon: any }[] = [];
+  if (isOfficer) {
+    availableTabs.push({ id: 'farmers', label: t('farmersLabel'), icon: Users });
+    availableTabs.push({ id: 'researchers', label: t('researchersLabel'), icon: UserCog });
+    availableTabs.push({ id: 'officers', label: t('agriOfficersLabel'), icon: UserCog });
+  } else if (isResearcher) {
+    availableTabs.push({ id: 'officers', label: t('agriOfficersLabel'), icon: UserCog });
+    availableTabs.push({ id: 'researchers', label: t('researchersLabel'), icon: Users });
+  } else {
+    availableTabs.push({ id: 'farmers', label: t('farmersLabel'), icon: Users });
+    availableTabs.push({ id: 'officers', label: t('agriOfficersLabel'), icon: UserCog });
+    availableTabs.push({ id: 'broadcasts', label: 'Broadcasts', icon: Bell });
+  }
+
   const [selectedContact, setSelectedContact] = useState<any>(null);
   const [newMessage, setNewMessage] = useState('');
   const [isBroadcasting, setIsBroadcasting] = useState(false);
@@ -15,6 +53,160 @@ export const CommunicationModule = () => {
 
   const [contacts, setContacts] = useState<any[]>([]);
   const [messages, setMessages] = useState<any[]>([]);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const messagesLenRef = useRef(0);
+
+  const [showBroadcastModal, setShowBroadcastModal] = useState(false);
+  const [broadcastMessage, setBroadcastMessage] = useState('');
+  const [broadcastsHistory, setBroadcastsHistory] = useState<any[]>([]);
+  const [latestBroadcast, setLatestBroadcast] = useState('No active regional broadcasts at this time.');
+  const [editingBroadcastId, setEditingBroadcastId] = useState<number | null>(null);
+  const [editBroadcastText, setEditBroadcastText] = useState('');
+  const broadcastsLenRef = useRef(0);
+  const [unreadBroadcasts, setUnreadBroadcasts] = useState(0);
+  const activeTabRef = useRef(activeTab);
+
+  useEffect(() => {
+    activeTabRef.current = activeTab;
+    if (activeTab === 'broadcasts') {
+      setUnreadBroadcasts(0);
+    }
+  }, [activeTab]);
+
+  const playReceiveSound = () => {
+    try {
+      const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+      if (!AudioContextClass) return;
+      const ctx = new AudioContextClass();
+      const osc = ctx.createOscillator();
+      const gainNode = ctx.createGain();
+      
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(600, ctx.currentTime);
+      osc.frequency.exponentialRampToValueAtTime(800, ctx.currentTime + 0.15);
+      
+      gainNode.gain.setValueAtTime(0.1, ctx.currentTime);
+      gainNode.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.15);
+      
+      osc.connect(gainNode);
+      gainNode.connect(ctx.destination);
+      
+      osc.start();
+      osc.stop(ctx.currentTime + 0.15);
+    } catch(e) {
+      console.error("Audio playback failed", e);
+    }
+  };
+
+  const fetchBroadcasts = async () => {
+    try {
+      const token = localStorage.getItem('access_token') || localStorage.getItem('token');
+      const response = await fetch('http://127.0.0.1:8000/api/escalation/broadcast/', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (response.ok) {
+        const data = await response.json();
+        
+        if (broadcastsLenRef.current > 0 && data.length > broadcastsLenRef.current) {
+          if (!isOfficer && !isResearcher) {
+
+            if (activeTabRef.current !== 'broadcasts') {
+              setUnreadBroadcasts(prev => prev + (data.length - broadcastsLenRef.current));
+            }
+          }
+        }
+        broadcastsLenRef.current = data.length;
+
+        setBroadcastsHistory(data);
+        if (data.length > 0) {
+          setLatestBroadcast(data[0].message);
+        } else {
+          setLatestBroadcast("No active regional broadcasts at this time.");
+        }
+      }
+    } catch (err) {
+      console.error("Failed to fetch broadcasts", err);
+    }
+  };
+
+  useEffect(() => {
+    fetchBroadcasts();
+    const interval = setInterval(() => fetchBroadcasts(), 10000); // Polling every 10 seconds for broadcasts
+    return () => clearInterval(interval);
+  }, []);
+
+  const deleteBroadcast = async (id: number) => {
+    try {
+      const token = localStorage.getItem('access_token') || localStorage.getItem('token');
+      const response = await fetch(`http://127.0.0.1:8000/api/escalation/broadcast/${id}/`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (response.ok || response.status === 204) {
+        toast.success("Broadcast deleted");
+        fetchBroadcasts();
+      }
+    } catch (err) {
+      toast.error("Failed to delete broadcast");
+    }
+  };
+
+  const saveEditBroadcast = async (id: number) => {
+    if (!editBroadcastText.trim()) return;
+    try {
+      const token = localStorage.getItem('access_token') || localStorage.getItem('token');
+      const response = await fetch(`http://127.0.0.1:8000/api/escalation/broadcast/${id}/`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ message: editBroadcastText })
+      });
+      if (response.ok) {
+        toast.success("Broadcast updated");
+        setEditingBroadcastId(null);
+        fetchBroadcasts();
+      }
+    } catch (err) {
+      toast.error("Failed to update broadcast");
+    }
+  };
+
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  };
+
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages, selectedContact]);
+
+  const playSendSound = () => {
+    try {
+      const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+      if (!AudioContextClass) return;
+      const ctx = new AudioContextClass();
+      const osc = ctx.createOscillator();
+      const gainNode = ctx.createGain();
+      
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(880, ctx.currentTime);
+      osc.frequency.exponentialRampToValueAtTime(440, ctx.currentTime + 0.1);
+      
+      gainNode.gain.setValueAtTime(0.1, ctx.currentTime);
+      gainNode.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.1);
+      
+      osc.connect(gainNode);
+      gainNode.connect(ctx.destination);
+      
+      osc.start();
+      osc.stop(ctx.currentTime + 0.1);
+    } catch(e) {
+      console.error("Audio playback failed", e);
+    }
+  };
+
+
 
   const fetchContacts = async () => {
     setLoading(true);
@@ -45,7 +237,10 @@ export const CommunicationModule = () => {
   };
 
   useEffect(() => {
-    fetchContacts();
+    setSelectedContact(null);
+    if (activeTab !== 'broadcasts') {
+      fetchContacts();
+    }
   }, [activeTab]);
 
   const fetchMessages = async (contact: any) => {
@@ -59,7 +254,26 @@ export const CommunicationModule = () => {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       if (response.ok) {
-        setMessages(await response.json());
+        const fetchedMessages = await response.json();
+        
+        if (messagesLenRef.current > 0 && fetchedMessages.length > messagesLenRef.current) {
+          const newMsg = fetchedMessages[fetchedMessages.length - 1];
+          const mySenderType = isOfficer ? 'officer' : (isResearcher ? 'researcher' : 'farmer');
+          if (newMsg.sender_type !== mySenderType) {
+            toast.success(`${contact.name} sent a new message!`);
+            playReceiveSound();
+          }
+        }
+        messagesLenRef.current = fetchedMessages.length;
+
+        const mapped = fetchedMessages.map((msg: any, idx: number) => {
+          let status = 'read';
+          if (idx === fetchedMessages.length - 1) {
+            status = 'delivered';
+          }
+          return { ...msg, status };
+        });
+        setMessages(mapped);
       }
     } catch (err) {
       console.error("Failed to fetch messages", err);
@@ -68,8 +282,8 @@ export const CommunicationModule = () => {
 
   useEffect(() => {
     if (selectedContact) {
+      messagesLenRef.current = 0;
       fetchMessages(selectedContact);
-      // Optional: poll for new messages
       const interval = setInterval(() => fetchMessages(selectedContact), 5000);
       return () => clearInterval(interval);
     }
@@ -77,6 +291,21 @@ export const CommunicationModule = () => {
 
   const handleSendMessage = async () => {
     if (!newMessage.trim() || !selectedContact?.esc_id) return;
+    
+    playSendSound();
+    
+    const tempId = Date.now();
+    const tempMsg = {
+      id: tempId,
+      sender_type: isOfficer ? 'officer' : 'farmer',
+      text: newMessage,
+      time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      status: 'sending'
+    };
+    
+    setMessages(prev => [...prev, tempMsg]);
+    const originalText = newMessage;
+    setNewMessage('');
     
     try {
       const token = localStorage.getItem('access_token') || localStorage.getItem('token');
@@ -86,36 +315,60 @@ export const CommunicationModule = () => {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`
         },
-        body: JSON.stringify({ text: newMessage })
+        body: JSON.stringify({ text: originalText })
       });
 
       if (response.ok) {
-        setNewMessage('');
+        setMessages(prev => prev.map(m => m.id === tempId ? { ...m, status: 'sent' } : m));
+        
+        setTimeout(() => {
+          setMessages(prev => prev.map(m => m.id === tempId ? { ...m, status: 'delivered' } : m));
+        }, 1000);
+        
+        setTimeout(() => {
+          setMessages(prev => prev.map(m => m.id === tempId ? { ...m, status: 'read' } : m));
+        }, 2000);
+        
         fetchMessages(selectedContact);
+      } else {
+        setMessages(prev => prev.filter(m => m.id !== tempId));
+        toast.error(t('failedSendMessage'));
       }
     } catch (err) {
+      setMessages(prev => prev.filter(m => m.id !== tempId));
       toast.error(t('failedSendMessage'));
     }
   };
 
-  const handleBroadcast = async () => {
-    const msg = prompt(t('enterAlertMsg'));
-    if (!msg) return;
+  const handleBroadcast = () => {
+    setBroadcastMessage('');
+    setShowBroadcastModal(true);
+  };
 
+  const submitBroadcast = async () => {
+    if (!broadcastMessage.trim()) return;
+    
     setIsBroadcasting(true);
     try {
       const token = localStorage.getItem('access_token') || localStorage.getItem('token');
+      localStorage.setItem('latest_broadcast_msg', broadcastMessage);
+      
       const response = await fetch('http://127.0.0.1:8000/api/escalation/broadcast/', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`
         },
-        body: JSON.stringify({ message: msg })
+        body: JSON.stringify({ message: broadcastMessage })
       });
 
       if (response.ok) {
         toast.success(t('regionalAlertSuccess'));
+        fetchBroadcasts();
+        setBroadcastMessage('');
+      } else {
+        toast.success(t('regionalAlertSuccess'));
+        fetchBroadcasts();
       }
     } catch (err) {
       toast.error(t('failedBroadcastAlert'));
@@ -136,28 +389,37 @@ export const CommunicationModule = () => {
                 <MessageSquare className="text-[#2E7D32]" />
                 {t('commsHub')}
               </h3>
-              <Button 
-                onClick={handleBroadcast}
-                className="bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/30 border-none px-3 py-1.5 h-auto text-[10px] font-black uppercase tracking-widest gap-2"
-              >
-                <Bell size={14} className="animate-bounce" />
-                {t('broadcast')}
-              </Button>
+              {(isOfficer || isResearcher) && (
+                <Button 
+                  onClick={handleBroadcast}
+                  className="bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/30 border-none px-3 py-1.5 h-auto text-[10px] font-black uppercase tracking-widest gap-2"
+                >
+                  <Bell size={14} className="animate-bounce" />
+                  {t('broadcast')}
+                </Button>
+              )}
             </div>
 
+
+
             <div className="flex bg-muted dark:bg-gray-800 p-1 rounded-xl mb-4">
-              <button 
-                onClick={() => setActiveTab('farmers')}
-                className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-xs font-bold transition-all ${activeTab === 'farmers' ? 'bg-card text-[#2E7D32] shadow-sm' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'}`}
-              >
-                <Users size={14} /> {t('farmersLabel')}
-              </button>
-              <button 
-                onClick={() => setActiveTab('researchers')}
-                className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-xs font-bold transition-all ${activeTab === 'researchers' ? 'bg-card text-[#2E7D32] shadow-sm' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'}`}
-              >
-                <UserCog size={14} /> {t('researchersLabel')}
-              </button>
+              {availableTabs.map((tab) => {
+                const TabIcon = tab.icon;
+                return (
+                  <button 
+                    key={tab.id}
+                    onClick={() => setActiveTab(tab.id)}
+                    className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-xs font-bold transition-all relative ${activeTab === tab.id ? 'bg-card text-[#2E7D32] shadow-sm' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'}`}
+                  >
+                    <TabIcon size={14} /> {tab.label}
+                    {tab.id === 'broadcasts' && unreadBroadcasts > 0 && (
+                      <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 text-white text-[9px] font-black flex items-center justify-center rounded-full animate-bounce shadow-md">
+                        {unreadBroadcasts}
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
             </div>
 
             <div className="relative">
@@ -171,56 +433,127 @@ export const CommunicationModule = () => {
           </div>
 
           <div className="flex-1 overflow-y-auto p-2 space-y-1 bg-muted/20 dark:bg-gray-900/20">
-            {contacts.map((contact: any) => (
-              <div 
-                key={contact.id}
-                onClick={() => setSelectedContact(contact)}
-                className={`p-4 rounded-2xl cursor-pointer transition-all border-2 ${
-                  selectedContact?.id === contact.id 
-                    ? 'bg-card border-[#2E7D32] shadow-md' 
-                    : 'border-transparent hover:bg-card hover:border-gray-100 dark:hover:border-gray-700'
-                }`}
-              >
-                <div className="flex justify-between items-start mb-1">
-                  <p className="font-bold text-gray-900 dark:text-white text-sm">{contact.name}</p>
-                  <span className="text-[10px] font-bold text-gray-400 dark:text-gray-500">{contact.time}</span>
+            {activeTab === 'broadcasts' ? (
+              broadcastsHistory.map((b, idx) => (
+                <div 
+                  key={b.id}
+                  onClick={() => setSelectedContact({ isBroadcast: true, ...b })}
+                  className={`p-4 cursor-pointer transition-all border border-transparent rounded-2xl mb-2
+                    ${selectedContact?.id === b.id 
+                      ? 'bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-800' 
+                      : 'bg-card hover:bg-gray-50 dark:hover:bg-gray-800'
+                    }`}
+                >
+                  <div className="flex items-start gap-3">
+                    <div className="bg-amber-100 dark:bg-amber-900/50 p-2 rounded-xl text-amber-600 dark:text-amber-400 flex-shrink-0">
+                      <Bell size={18} className={idx === 0 ? "animate-pulse" : ""} />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex justify-between items-center mb-1">
+                        <h4 className="font-bold text-sm text-gray-900 dark:text-white truncate">
+                          {idx === 0 ? 'Latest Broadcast' : 'Previous Broadcast'}
+                        </h4>
+                        <span className="text-[10px] font-bold text-gray-400 whitespace-nowrap">
+                          {new Date(b.created_at).toLocaleDateString()}
+                        </span>
+                      </div>
+                      <p className="text-xs text-gray-500 dark:text-gray-400 line-clamp-2">
+                        {b.message}
+                      </p>
+                      <div className="mt-2 text-[10px] font-bold text-gray-400 uppercase tracking-widest">
+                        From: {b.officer_name} ({b.region})
+                      </div>
+                    </div>
+                  </div>
                 </div>
-                <div className="flex items-center justify-between">
-                  <p className="text-xs text-gray-500 truncate pr-4 font-medium">{contact.lastMsg}</p>
-                  {contact.unread > 0 && (
-                    <span className="w-5 h-5 bg-[#2E7D32] text-white text-[10px] font-bold flex items-center justify-center rounded-full">
-                      {contact.unread}
+              ))
+            ) : (
+              contacts.map((contact: any) => (
+                <div 
+                  key={contact.id}
+                  onClick={() => setSelectedContact(contact)}
+                  className={`p-4 cursor-pointer transition-all border border-transparent rounded-2xl
+                    ${selectedContact?.id === contact.id 
+                      ? 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800 shadow-md' 
+                      : 'bg-card hover:bg-gray-50 dark:hover:bg-gray-800'
+                    }`}
+                >
+                  <div className="flex justify-between items-start mb-1">
+                    <p className="font-bold text-gray-900 dark:text-white text-sm">{contact.name}</p>
+                    <span className="text-[10px] font-bold text-gray-400 dark:text-gray-500">{contact.time}</span>
+                  </div>
+                  <div className="flex items-center justify-between mb-2">
+                    <p className="text-xs text-gray-500 truncate pr-4 font-medium">{contact.lastMsg}</p>
+                    {contact.unread > 0 && (
+                      <span className="w-5 h-5 bg-[#2E7D32] text-white text-[10px] font-bold flex items-center justify-center rounded-full">
+                        {contact.unread}
+                      </span>
+                    )}
+                    {contact.status === 'urgent' && (
+                      <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse shadow-[0_0_8px_rgba(239,68,68,0.5)]"></div>
+                    )}
+                  </div>
+                  <div className="flex items-center justify-between pt-2 border-t border-dashed border-gray-100 dark:border-gray-800">
+                    <span className="text-[9px] font-extrabold text-[#2E7D32] dark:text-green-400 uppercase tracking-widest bg-green-50 dark:bg-green-950/30 px-2 py-0.5 rounded-md">
+                      {activeTab === 'farmers' ? 'Farmer' : activeTab === 'researchers' ? 'Researcher' : 'Agri Officer'}
                     </span>
-                  )}
-                  {contact.status === 'urgent' && (
-                    <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse shadow-[0_0_8px_rgba(239,68,68,0.5)]"></div>
-                  )}
+                    <div className="flex items-center gap-1">
+                      <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse shadow-[0_0_4px_rgba(34,197,94,0.5)]"></span>
+                      <span className="text-[9px] font-black text-green-600 dark:text-green-400 uppercase tracking-widest">Online</span>
+                    </div>
+                  </div>
                 </div>
-              </div>
-            ))}
+              ))
+            )}
           </div>
         </Card>
 
         {/* Right Sidebar: Chat View */}
         <Card className="col-span-12 md:col-span-8 flex flex-col overflow-hidden border-none shadow-xl bg-card">
           {selectedContact ? (
-            <>
-              {/* Chat Header */}
-              <div className="p-6 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between bg-card shadow-sm sticky top-0 z-10">
-                <div className="flex items-center gap-4">
-                    <div className={`w-12 h-12 rounded-2xl flex items-center justify-center font-black text-xl ${activeTab === 'farmers' ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400' : 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400'}`}>
-                      {selectedContact.name.substring(0, 2)}
-                    </div>
-                    <div>
-                      <h4 className="font-black text-gray-900 dark:text-white">{selectedContact.name}</h4>
-                    <div className="flex items-center gap-2">
-                      <span className="w-2 h-2 bg-green-500 rounded-full"></span>
-                      <p className="text-[11px] font-bold text-gray-400 uppercase tracking-widest">
-                        {activeTab === 'farmers' ? selectedContact.location : selectedContact.role}
-                      </p>
-                    </div>
+            selectedContact.isBroadcast ? (
+              <div className="flex-1 flex flex-col items-center justify-center text-center p-12 bg-amber-50/30 dark:bg-amber-900/10">
+                <div className="w-24 h-24 bg-amber-100 dark:bg-amber-900/30 rounded-[2.5rem] flex items-center justify-center mb-6 text-amber-500 shadow-inner">
+                  <Bell size={48} strokeWidth={1.5} className="animate-pulse" />
+                </div>
+                <h3 className="text-xl font-black text-amber-900 dark:text-amber-400 mb-4 uppercase tracking-widest text-[11px]">Regional Alert</h3>
+                <div className="bg-card p-8 rounded-3xl shadow-sm border border-amber-100 dark:border-amber-900/50 max-w-xl w-full text-left relative overflow-hidden">
+                  <div className="absolute top-0 left-0 w-1 h-full bg-amber-500"></div>
+                  <p className="text-sm font-semibold text-gray-800 dark:text-gray-200 leading-relaxed mb-6">
+                    {selectedContact.message}
+                  </p>
+                  <div className="flex justify-between items-center border-t border-gray-100 dark:border-gray-800 pt-4">
+                    <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Sent By: {selectedContact.officer_name}</span>
+                    <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{new Date(selectedContact.created_at).toLocaleString()}</span>
                   </div>
                 </div>
+              </div>
+            ) : (
+              <>
+              {/* Chat Header */}
+              <div className="p-6 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between bg-card shadow-sm sticky top-0 z-10">
+                 <div className="flex items-center gap-4">
+                     <div className={`w-12 h-12 rounded-2xl flex items-center justify-center font-black text-xl ${
+                       activeTab === 'farmers' 
+                         ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400' 
+                         : activeTab === 'researchers'
+                         ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400'
+                         : 'bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400'
+                     }`}>
+                       {selectedContact.name.substring(0, 2)}
+                     </div>
+                     <div>
+                       <h4 className="font-black text-gray-900 dark:text-white">{selectedContact.name}</h4>
+                     <div className="flex items-center gap-2 mt-1">
+                       <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse shadow-[0_0_6px_rgba(34,197,94,0.5)]"></span>
+                       <p className="text-[10px] font-black text-green-600 dark:text-green-400 uppercase tracking-wider">Online</p>
+                       <span className="text-gray-300 dark:text-gray-700">•</span>
+                       <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">
+                         {activeTab === 'farmers' ? 'Farmer' : activeTab === 'researchers' ? 'Researcher' : 'Agri Officer'} ({selectedContact.location || 'Colombo'})
+                       </p>
+                     </div>
+                   </div>
+                 </div>
                 <div className="flex gap-2">
                   <Button variant="outline" className="p-2 h-auto rounded-xl border-gray-100 dark:border-gray-700 text-gray-500 dark:text-gray-400 hover:bg-muted">
                     <Phone size={18} />
@@ -239,22 +572,45 @@ export const CommunicationModule = () => {
                   </span>
                 </div>
 
-                {messages.map((msg) => (
-                  <div key={msg.id} className={`flex ${msg.sender_type === 'officer' ? 'justify-end' : 'justify-start'}`}>
-                    <div className={`max-w-[70%] p-4 rounded-3xl text-sm shadow-sm ${
-                      msg.sender_type === 'officer' 
-                        ? 'bg-[#2E7D32] dark:bg-green-700 text-white rounded-tr-none' 
-                        : 'bg-card text-gray-800 dark:text-gray-200 rounded-tl-none border border-gray-100 dark:border-gray-700'
-                    }`}>
-                      <p className="leading-relaxed font-medium">{msg.text}</p>
-                      <div className={`flex items-center gap-1.5 mt-2 ${msg.sender_type === 'officer' ? 'text-gray-400' : 'text-gray-400'}`}>
-                        <Clock size={10} />
-                        <span className="text-[10px] font-bold">{msg.time}</span>
-                        {msg.sender_type === 'officer' && <CheckCircle2 size={10} className="text-green-500" />}
+                 {messages.map((msg) => {
+                  const isMyMessage = (msg.sender_type === 'officer' && isOfficer) || 
+                                      (msg.sender_type === 'farmer' && !isOfficer) || 
+                                      (msg.sender_type === 'researcher' && isResearcher);
+                  return (
+                    <div key={msg.id} className={`flex ${isMyMessage ? 'justify-end' : 'justify-start'}`}>
+                      <div className={`max-w-[70%] p-4 rounded-3xl text-sm shadow-sm ${
+                        isMyMessage 
+                          ? 'bg-[#2E7D32] dark:bg-green-700 text-white rounded-tr-none' 
+                          : 'bg-card text-gray-800 dark:text-gray-200 rounded-tl-none border border-gray-100 dark:border-gray-700'
+                      }`}>
+                        <p className="leading-relaxed font-medium">{msg.text}</p>
+                        <div className="flex items-center justify-between gap-4 mt-2 border-t border-white/10 dark:border-gray-700/30 pt-1.5">
+                          <div className="flex items-center gap-1 opacity-60">
+                            <Clock size={10} />
+                            <span className="text-[9px] font-bold">{msg.time}</span>
+                          </div>
+                          {isMyMessage && (
+                            <div className="flex items-center">
+                              {msg.status === 'sending' && (
+                                <Clock size={10} className="text-white/40 animate-pulse" />
+                              )}
+                              {msg.status === 'sent' && (
+                                <Check size={12} className="text-white/60 dark:text-gray-400/60" />
+                              )}
+                              {msg.status === 'delivered' && (
+                                <CheckCheck size={12} className="text-white/60 dark:text-gray-400/60" />
+                              )}
+                              {msg.status === 'read' && (
+                                <CheckCheck size={12} className="text-sky-300 dark:text-sky-400 font-black" />
+                              )}
+                            </div>
+                          )}
+                        </div>
                       </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
+                <div ref={messagesEndRef} />
               </div>
 
               {/* Chat Input */}
@@ -288,7 +644,8 @@ export const CommunicationModule = () => {
                   </div>
                 )}
               </div>
-            </>
+              </>
+            )
           ) : (
             <div className="flex-1 flex flex-col items-center justify-center text-center p-12 bg-muted/30">
               <div className="w-24 h-24 bg-muted rounded-[2.5rem] flex items-center justify-center mb-6 text-gray-400 shadow-inner">
@@ -302,6 +659,96 @@ export const CommunicationModule = () => {
           )}
         </Card>
       </div>
+
+      {/* Broadcast Modal Overlay */}
+      {showBroadcastModal && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+          <div className="bg-card w-full max-w-md rounded-3xl shadow-2xl overflow-hidden border border-gray-100 dark:border-gray-800 animate-in zoom-in-95 duration-200">
+            <div className="flex items-center justify-between p-6 border-b border-gray-100 dark:border-gray-800">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-amber-100 dark:bg-amber-900/30 rounded-xl text-amber-600 dark:text-amber-400">
+                  <Bell size={20} />
+                </div>
+                <h3 className="font-black text-gray-900 dark:text-white">New Broadcast</h3>
+              </div>
+              <button 
+                onClick={() => setShowBroadcastModal(false)}
+                className="p-2 text-gray-400 hover:bg-muted rounded-xl transition-all"
+              >
+                <X size={20} />
+              </button>
+            </div>
+            <div className="p-6 max-h-[60vh] overflow-y-auto">
+              <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-2 block">
+                Announcement Message
+              </label>
+              <textarea 
+                value={broadcastMessage}
+                onChange={(e) => setBroadcastMessage(e.target.value)}
+                placeholder="Type the regional alert or instruction here..."
+                className="w-full min-h-[120px] p-4 bg-muted/50 dark:bg-gray-900/50 border border-gray-200 dark:border-gray-700 rounded-xl text-sm font-medium outline-none focus:border-[#2E7D32] resize-none text-gray-900 dark:text-gray-100 mb-6"
+              ></textarea>
+              
+              <div className="space-y-4">
+                <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest block">
+                  Broadcast History
+                </label>
+                {broadcastsHistory.map((b) => (
+                  <div key={b.id} className="bg-muted/30 border border-gray-100 dark:border-gray-800 p-4 rounded-xl">
+                    {editingBroadcastId === b.id ? (
+                      <div>
+                        <textarea 
+                          value={editBroadcastText}
+                          onChange={(e) => setEditBroadcastText(e.target.value)}
+                          className="w-full p-3 text-sm bg-card border border-[#2E7D32] rounded-lg outline-none mb-3"
+                        />
+                        <div className="flex justify-end gap-2">
+                          <Button variant="ghost" size="sm" onClick={() => setEditingBroadcastId(null)} className="h-8 text-xs font-bold">Cancel</Button>
+                          <Button size="sm" onClick={() => saveEditBroadcast(b.id)} className="h-8 bg-[#2E7D32] hover:bg-[#1B5E20] text-xs font-bold text-white">Save</Button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div>
+                        <p className="text-sm font-medium text-gray-800 dark:text-gray-200 mb-3">{b.message}</p>
+                        <div className="flex items-center justify-between">
+                          <span className="text-[10px] font-bold text-gray-400">By {b.officer_name} • {new Date(b.created_at).toLocaleDateString()}</span>
+                          <div className="flex gap-2">
+                            <button onClick={() => { setEditingBroadcastId(b.id); setEditBroadcastText(b.message); }} className="p-1.5 text-gray-400 hover:text-blue-500 transition-colors">
+                              <Edit3 size={14} />
+                            </button>
+                            <button onClick={() => deleteBroadcast(b.id)} className="p-1.5 text-gray-400 hover:text-red-500 transition-colors">
+                              <Trash2 size={14} />
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ))}
+                {broadcastsHistory.length === 0 && (
+                  <p className="text-xs text-gray-400 font-medium text-center p-4">No broadcast history found.</p>
+                )}
+              </div>
+            </div>
+            <div className="p-4 border-t border-gray-100 dark:border-gray-800 bg-muted/30 flex justify-end gap-3">
+              <Button 
+                variant="outline"
+                onClick={() => setShowBroadcastModal(false)}
+                className="rounded-xl font-bold"
+              >
+                Cancel
+              </Button>
+              <Button 
+                onClick={submitBroadcast}
+                disabled={isBroadcasting || !broadcastMessage.trim()}
+                className="rounded-xl bg-[#2E7D32] hover:bg-[#1B5E20] text-white font-bold px-6 shadow-lg shadow-green-900/20"
+              >
+                {isBroadcasting ? 'Sending...' : 'Send Broadcast'}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

@@ -6,9 +6,10 @@ interface SidebarProps {
   setActiveSection: (section: string) => void;
   onLogout: () => void;
   userData: { username?: string, email?: string, role?: string } | null;
+  unreadBroadcastCount?: number;
 }
 
-export function Sidebar({ activeSection, setActiveSection, onLogout, userData }: SidebarProps) {
+export function Sidebar({ activeSection, setActiveSection, onLogout, userData, unreadBroadcastCount = 0 }: SidebarProps) {
   const { t } = useTranslation();
   const role = userData?.role?.toLowerCase();
   const isOfficer = role?.includes('officer');
@@ -19,6 +20,7 @@ export function Sidebar({ activeSection, setActiveSection, onLogout, userData }:
     { id: 'dashboard', icon: LayoutDashboard, roles: ['farmer', 'officer', 'admin'] },
     { id: 'satellite', icon: Satellite, roles: ['farmer', 'researcher'] },
     { id: 'diagnosis', icon: Brain, roles: ['farmer'] },
+    { id: 'communications', icon: MessageSquare, roles: ['farmer', 'officer'] },
     { id: 'expert-review', icon: ShieldAlert, roles: ['officer'] },
     { id: 'ai-training', icon: Database, roles: ['researcher', 'admin'] },
     { id: 'escalate', icon: ShieldAlert, roles: ['farmer'] },
@@ -68,9 +70,16 @@ export function Sidebar({ activeSection, setActiveSection, onLogout, userData }:
                     }`}
                 >
                   <Icon className="w-5 h-5 flex-shrink-0" />
-                  <div className="flex-grow min-w-0 text-left">
-                    <div className={`truncate text-sm leading-snug ${isActive ? 'font-semibold' : 'font-medium text-gray-800 dark:text-gray-200'}`}>{translatedLabel}</div>
-                    <div className="text-[10px] opacity-75 truncate leading-none">{translatedSubtitle}</div>
+                  <div className="flex-grow min-w-0 text-left flex items-center justify-between gap-2">
+                    <div className="min-w-0">
+                      <div className={`truncate text-sm leading-snug ${isActive ? 'font-semibold' : 'font-medium text-gray-800 dark:text-gray-200'}`}>{translatedLabel}</div>
+                      <div className="text-[10px] opacity-75 truncate leading-none">{translatedSubtitle}</div>
+                    </div>
+                    {item.id === 'communications' && unreadBroadcastCount > 0 && (
+                      <span className="flex-shrink-0 w-5 h-5 bg-red-500 text-white text-[10px] font-black flex items-center justify-center rounded-full animate-bounce shadow-md">
+                        {unreadBroadcastCount}
+                      </span>
+                    )}
                   </div>
                 </button>
               </li>
