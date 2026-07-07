@@ -45,6 +45,11 @@ export const SettingsModule = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [showMap, setShowMap] = useState(false);
   const [isMapMaximized, setIsMapMaximized] = useState(false);
+  const [showPurgeWarning, setShowPurgeWarning] = useState(false);
+  
+  const [showPasswordForm, setShowPasswordForm] = useState(false);
+  const [passwordData, setPasswordData] = useState({ old_password: '', new_password: '' });
+  const [isChangingPassword, setIsChangingPassword] = useState(false);
   
   // Notification states
   const [diseaseAlerts, setDiseaseAlerts] = useState(true);
@@ -107,8 +112,8 @@ export const SettingsModule = () => {
       
       const payload = {
         language: selectedLangCode,
-        latitude: location[0],
-        longitude: location[1],
+        latitude: parseFloat(location[0].toFixed(6)),
+        longitude: parseFloat(location[1].toFixed(6)),
         disease_alerts: diseaseAlerts,
         weather_warnings: weatherWarnings,
         system_updates: systemUpdates,
@@ -149,11 +154,39 @@ export const SettingsModule = () => {
     }
   };
 
+  const handleChangePassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!passwordData.old_password || !passwordData.new_password) return;
+    setIsChangingPassword(true);
+    try {
+      const token = localStorage.getItem('access_token') || localStorage.getItem('token');
+      const response = await fetch('http://127.0.0.1:8000/api/auth/password-change/', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(passwordData)
+      });
+      const data = await response.json();
+      if (response.ok) {
+        toast.success(data.message || 'Password changed successfully');
+        setShowPasswordForm(false);
+        setPasswordData({ old_password: '', new_password: '' });
+      } else {
+        toast.error(data.old_password?.[0] || data.new_password?.[0] || 'Failed to change password');
+      }
+    } catch (err) {
+      toast.error('Network error. Failed to change password.');
+    } finally {
+      setIsChangingPassword(false);
+    }
+  };
+
   const handleClearData = async () => {
-    if (confirm(t('purgeConfirm'))) {
-      try {
-        const token = localStorage.getItem('access_token') || localStorage.getItem('token');
-        const response = await fetch(`${API_BASE}purge-history/`, {
+    try {
+      const token = localStorage.getItem('access_token') || localStorage.getItem('token');
+      const response = await fetch(`${API_BASE}purge-history/`, {
           method: 'POST',
           headers: { 'Authorization': `Bearer ${token}` }
         });
@@ -169,7 +202,6 @@ export const SettingsModule = () => {
       } catch (err) {
         toast.error(t('purgeError'));
       }
-    }
   };
 
   const handleSearch = async () => {
@@ -432,13 +464,45 @@ export const SettingsModule = () => {
                 <Shield size={18} className="text-[#2E7D32]" /> {t('privacySecurity')}
               </h4>
               <div className="grid grid-cols-1 gap-3">
-                <Button variant="outline" className="justify-start gap-2 h-14 py-0 px-4 border-gray-200 dark:border-gray-700 dark:bg-gray-800 dark:hover:bg-gray-700">
-                  <Lock size={14} className="text-gray-400 flex-shrink-0" />
-                  <div className="text-left min-w-0">
-                    <p className="text-xs font-bold text-gray-900 dark:text-gray-100 truncate">{t('changePassword')}</p>
-                    <p className="text-[10px] text-gray-500 dark:text-gray-400 truncate">{t('changePasswordSub')}</p>
-                  </div>
-                </Button>
+                <div className="border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 overflow-hidden">
+                  <Button 
+                    variant="ghost" 
+                    onClick={() => setShowPasswordForm(!showPasswordForm)}
+                    className="w-full justify-start gap-2 h-14 py-0 px-4 rounded-none hover:bg-gray-50 dark:hover:bg-gray-700"
+                  >
+                    <Lock size={14} className="text-gray-400 flex-shrink-0" />
+                    <div className="text-left min-w-0">
+                      <p className="text-xs font-bold text-gray-900 dark:text-gray-100 truncate">{t('changePassword')}</p>
+                      <p className="text-[10px] text-gray-500 dark:text-gray-400 truncate">{t('changePasswordSub') || 'Update your security credentials'}</p>
+                    </div>
+                  </Button>
+                  {showPasswordForm && (
+                    <form onSubmit={handleChangePassword} className="p-4 border-t border-gray-100 dark:border-gray-700 space-y-3 bg-gray-50 dark:bg-gray-800/50">
+                      <input 
+                        type="password" 
+                        placeholder="Current Password" 
+                        className="w-full px-3 py-2 border border-gray-200 dark:border-gray-600 rounded bg-white dark:bg-gray-900 text-sm focus:ring-[#2E7D32]"
+                        value={passwordData.old_password}
+                        onChange={(e) => setPasswordData({...passwordData, old_password: e.target.value})}
+                        required
+                      />
+                      <input 
+                        type="password" 
+                        placeholder="New Password" 
+                        className="w-full px-3 py-2 border border-gray-200 dark:border-gray-600 rounded bg-white dark:bg-gray-900 text-sm focus:ring-[#2E7D32]"
+                        value={passwordData.new_password}
+                        onChange={(e) => setPasswordData({...passwordData, new_password: e.target.value})}
+                        required
+                      />
+                      <div className="flex justify-end gap-2 pt-2">
+                        <Button type="button" variant="outline" size="sm" onClick={() => setShowPasswordForm(false)}>Cancel</Button>
+                        <Button type="submit" size="sm" disabled={isChangingPassword} className="bg-[#2E7D32] text-white hover:bg-[#1B5E20]">
+                          {isChangingPassword ? <Loader2 size={14} className="animate-spin" /> : 'Update'}
+                        </Button>
+                      </div>
+                    </form>
+                  )}
+                </div>
                 <Button variant="outline" className="justify-start gap-2 h-14 py-0 px-4 border-gray-200 dark:border-gray-700 dark:bg-gray-800 dark:hover:bg-gray-700">
                   <RefreshCw size={14} className="text-gray-400 flex-shrink-0" />
                   <div className="text-left min-w-0">
@@ -463,7 +527,7 @@ export const SettingsModule = () => {
           <div className="flex gap-4 w-full md:w-auto flex-shrink-0">
             <Button 
               variant="outline" 
-              onClick={handleClearData}
+              onClick={() => setShowPurgeWarning(true)}
               className="flex-1 md:flex-none h-12 text-red-600 border-red-200 hover:bg-red-50 hover:text-red-700 font-bold px-8"
             >
               {t('purgeScanHistory')}
@@ -485,6 +549,39 @@ export const SettingsModule = () => {
         <div className="h-4 w-px bg-gray-200"></div>
         <p className="text-[10px] font-bold text-[#2E7D32] uppercase tracking-[0.2em]">{t('storageStatus')}: 1.2GB / 10GB {t('used')}</p>
       </div>
+
+      {/* Purge Warning Modal */}
+      {showPurgeWarning && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white dark:bg-gray-800 rounded-3xl max-w-md w-full p-8 shadow-2xl border border-red-100 dark:border-red-900/30 animate-in zoom-in-95 duration-200">
+            <div className="w-16 h-16 bg-red-100 dark:bg-red-900/30 text-red-600 rounded-full flex items-center justify-center mb-6 mx-auto">
+              <Trash2 size={32} />
+            </div>
+            <h2 className="text-2xl font-black text-center text-gray-900 dark:text-white mb-4">Are you absolutely sure?</h2>
+            <p className="text-gray-500 dark:text-gray-400 text-center mb-8 font-medium leading-relaxed">
+              This action cannot be undone. This will permanently delete your entire scan history, including all diagnostic results and satellite data linked to your account.
+            </p>
+            <div className="flex flex-col gap-3">
+              <Button 
+                onClick={() => {
+                  setShowPurgeWarning(false);
+                  handleClearData();
+                }}
+                className="w-full h-12 bg-red-600 hover:bg-red-700 text-white font-bold text-base"
+              >
+                Yes, delete everything
+              </Button>
+              <Button 
+                variant="outline" 
+                onClick={() => setShowPurgeWarning(false)}
+                className="w-full h-12 border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 font-bold text-base"
+              >
+                Cancel, keep my data
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Card } from './ui/card';
 import { Satellite, Layers, ZoomIn, Download, Plus, Save, X, Search, MapPin, Maximize, Minimize, Trash2, Navigation, Edit2, Check, Loader2 } from 'lucide-react';
 import { Button } from './ui/button';
-import { MapContainer, TileLayer, Polygon, Marker, Popup, useMap, useMapEvents, CircleMarker, Tooltip } from 'react-leaflet';
+import { MapContainer, TileLayer, Polygon, Marker, Popup, useMap, useMapEvents, CircleMarker, Tooltip, Rectangle } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
 import { useTranslation } from '../utils/translations';
@@ -27,6 +27,33 @@ function MapController({ center, zoom }: { center: [number, number], zoom: numbe
   return null;
 }
 
+// Force Leaflet to update its internal size representation when fullscreen toggles
+function MapResizer({ isFullscreen }: { isFullscreen: boolean }) {
+  const map = useMap();
+  useEffect(() => {
+    // Wait for any CSS transitions (like fullscreen expand) to finish before invalidating
+    const timeout = setTimeout(() => {
+      map.invalidateSize();
+    }, 300);
+    return () => clearTimeout(timeout);
+  }, [isFullscreen, map]);
+  return null;
+}
+
+// Ray-casting algorithm to check if a point is inside a polygon
+const isPointInPolygon = (point: {lat: number, lng: number}, polygon: {lat: number, lng: number}[]) => {
+  const x = point.lng, y = point.lat;
+  let inside = false;
+  for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+    const xi = polygon[i].lng, yi = polygon[i].lat;
+    const xj = polygon[j].lng, yj = polygon[j].lat;
+    
+    const intersect = ((yi > y) !== (yj > y)) && (x < (xj - xi) * (y - yi) / (yj - yi) + xi);
+    if (intersect) inside = !inside;
+  }
+  return inside;
+};
+
 // Map events to handle drawing
 function MapInteraction({ isCreating, points, setPoints }: { isCreating: boolean, points: any[], setPoints: any }) {
   useMapEvents({
@@ -47,11 +74,16 @@ export function SatelliteMonitoringView() {
   const [points, setPoints] = useState<{lat: number, lng: number}[]>([]);
   const [loading, setLoading] = useState(true);
   const [scanningFarmId, setScanningFarmId] = useState<number | null>(null);
+  const [visibleOverlays, setVisibleOverlays] = useState<{[key: number]: boolean}>({});
   
   // UI States
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [editingFarmId, setEditingFarmId] = useState<number | null>(null);
   const [editFarmName, setEditFarmName] = useState('');
+  const [farmToDelete, setFarmToDelete] = useState<number | null>(null);
+  const [imageViewerFarm, setImageViewerFarm] = useState<any | null>(null);
+  const [farmImages, setFarmImages] = useState<{[key: number]: any}>({});
+  const [loadingImage, setLoadingImage] = useState<boolean>(false);
 
   // Map State
   const [mapCenter, setMapCenter] = useState<[number, number]>([7.8731, 80.7718]); // Default to Sri Lanka
@@ -147,14 +179,6 @@ export function SatelliteMonitoringView() {
       }
 
       if (response.ok) {
-        const newFarm = await response.json();
-        
-        // Trigger initial scan
-        await fetch(`http://127.0.0.1:8000/api/satellite/farms/${newFarm.id}/request_scan/`, {
-          method: 'POST',
-          headers: { 'Authorization': `Bearer ${token}` }
-        });
-        
         setIsCreating(false);
         setPoints([]);
         setNewFarmName('');
@@ -173,17 +197,28 @@ export function SatelliteMonitoringView() {
     const farm = farms.find(f => f.id === id);
     if (farm && farm.center_lat && farm.center_lng) {
       setMapCenter([farm.center_lat, farm.center_lng]);
-      setMapZoom(16);
+      setMapZoom(18); // Zoom closer to view patches
     }
     
     try {
       const token = localStorage.getItem('access_token') || localStorage.getItem('token');
+      
       const response = await fetch(`http://127.0.0.1:8000/api/satellite/farms/${id}/request_scan/`, {
         method: 'POST',
-        headers: { 'Authorization': `Bearer ${token}` }
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}` 
+        }
       });
+      
       if (response.ok) {
         await fetchFarms();
+        // Show the overlay for this farm after scanning
+        setVisibleOverlays(prev => ({ ...prev, [id]: true }));
+      } else {
+        const errorText = await response.text();
+        console.error("Scan failed with status:", response.status, errorText);
+        alert(`Satellite Scan Failed (Status ${response.status}). Please check the console for details.`);
       }
     } catch (err) {
       console.error("Failed to rescan", err);
@@ -192,8 +227,11 @@ export function SatelliteMonitoringView() {
     }
   };
 
-  const handleDeleteFarm = async (id: number) => {
-    if (!window.confirm(t('confirmDeleteFarm'))) return;
+  const handleDeleteFarm = (id: number) => {
+    setFarmToDelete(id);
+  };
+
+  const confirmDeleteFarm = async (id: number) => {
     try {
       const token = localStorage.getItem('access_token') || localStorage.getItem('token');
       const response = await fetch(`http://127.0.0.1:8000/api/satellite/farms/${id}/`, {
@@ -201,6 +239,7 @@ export function SatelliteMonitoringView() {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       if (response.ok) {
+        setFarmToDelete(null);
         fetchFarms();
       }
     } catch (err) {
@@ -225,6 +264,35 @@ export function SatelliteMonitoringView() {
       }
     } catch(err) {
       console.error("Failed to update farm", err);
+    }
+  };
+
+  const openImageViewer = async (farm: any) => {
+    setImageViewerFarm(farm);
+    
+    // If we already fetched it, don't fetch again
+    if (farmImages[farm.id]) return;
+    
+    setLoadingImage(true);
+    try {
+      const token = localStorage.getItem('access_token') || localStorage.getItem('token');
+      const ndviResponse = await fetch(`http://127.0.0.1:8000/api/satellite/ndvi/`, {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}` 
+        },
+        body: JSON.stringify({ polygon_coordinates: farm.polygon_coordinates })
+      });
+      
+      if (ndviResponse.ok) {
+        const ndviData = await ndviResponse.json();
+        setFarmImages(prev => ({ ...prev, [farm.id]: ndviData }));
+      }
+    } catch (err) {
+      console.error("Failed to fetch satellite image", err);
+    } finally {
+      setLoadingImage(false);
     }
   };
 
@@ -357,7 +425,7 @@ export function SatelliteMonitoringView() {
         </div>
 
         {/* Map Area */}
-        <div className={`relative rounded-lg overflow-hidden border flex-grow ${isCreating ? 'ring-2 ring-[#ff4b6b]' : ''} ${isFullscreen ? 'h-full' : 'h-[500px]'}`}>
+        <div className={`relative z-0 rounded-lg overflow-hidden border flex-grow ${isCreating ? 'ring-2 ring-[#ff4b6b]' : ''} ${isFullscreen ? 'h-full' : 'h-[500px]'}`}>
           
           {/* Fullscreen Toggle */}
           <button 
@@ -381,6 +449,7 @@ export function SatelliteMonitoringView() {
             style={{ height: '100%', width: '100%' }}
             className={isCreating ? "cursor-crosshair" : ""}
           >
+            <MapResizer isFullscreen={isFullscreen} />
             {/* We use Google Satellite Map Tiles */}
             <TileLayer
               url="https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}"
@@ -433,6 +502,16 @@ export function SatelliteMonitoringView() {
                   
                   const ndvi = latestScan ? latestScan.ndvi_value : 0.5;
                   
+                  let color = '#2ecc71'; // Default green
+                  let category = 'Healthy';
+                  if (ndvi < 0.4) {
+                    color = '#ef4444'; // red
+                    category = 'Low (Severe Stress)';
+                  } else if (ndvi < 0.6) {
+                    color = '#f59e0b'; // orange
+                    category = 'Moderate Stress';
+                  }
+
                   return {
                     id: patch.id,
                     name: patch.name,
@@ -440,8 +519,8 @@ export function SatelliteMonitoringView() {
                     lng: patch.center_lng,
                     radius: patch.radius,
                     ndvi: ndvi,
-                    category: ndvi < 0.3 ? 'Low (Severe Stress)' : 'Moderate Stress',
-                    color: ndvi < 0.3 ? '#ef4444' : '#f59e0b',
+                    category: category,
+                    color: color,
                     history: scans
                   };
                 });
@@ -476,53 +555,90 @@ export function SatelliteMonitoringView() {
                     </Popup>
                   </Polygon>
                   
-                  {/* Render True Database Circular Hotspots */}
-                  {hotspots.map((spot, idx) => (
-                    <CircleMarker 
-                      key={`hotspot-${farm.id}-${spot.id}`}
-                      center={[spot.lat, spot.lng]}
-                      radius={spot.radius}
-                      pathOptions={{ 
-                        color: spot.color, 
-                        fillColor: spot.color, 
-                        fillOpacity: 0.35, 
-                        weight: 2,
-                        dashArray: '6, 6'
-                      }}
-                      className="animate-pulse"
-                    >
-                      <Popup>
-                        <div className="p-1 min-w-[150px] dark:bg-gray-800 dark:text-white">
-                          <h4 className="font-bold text-gray-900 dark:text-white mb-1">{spot.name}</h4>
-                          <p className="text-sm font-semibold" style={{ color: spot.color }}>
-                            {spot.category} (NDVI: {spot.ndvi.toFixed(2)})
-                          </p>
-                          <div className="mt-2">
-                            <p className="text-xs font-semibold text-gray-600 dark:text-gray-400 border-b dark:border-gray-700 pb-1 mb-1">{t('scanHistoryTracker')}</p>
-                            <div className="max-h-[100px] overflow-y-auto space-y-1">
-                              {spot.history.slice().reverse().map((h: any, i: number) => (
-                                <div key={i} className="flex justify-between text-xs">
-                                  <span className="text-gray-500 dark:text-gray-400">{t('scanWord')} {spot.history.length - i}</span>
-                                  <span className="font-mono font-medium" style={{ color: h.ndvi_value < 0.3 ? '#ef4444' : (h.ndvi_value > 0.6 ? '#2ecc71' : '#f59e0b') }}>
-                                    {h.ndvi_value.toFixed(2)}
-                                  </span>
+                  {/* Full NDVI Overlay from DB scan_data (shows green, orange, red - only after scan) */}
+                  {visibleOverlays[farm.id] && latestScan && latestScan.scan_data && latestScan.scan_data.patches && latestScan.scan_data.patches
+                    .filter((patch: any) => isPointInPolygon({lat: patch.lat, lng: patch.lng}, farm.polygon_coordinates))
+                    .map((patch: any, idx: number) => {
+                    const halfSize = 0.000045; // Roughly 5x5m rectangle for a 10m pixel
+                    const bounds: [[number, number], [number, number]] = [
+                      [patch.lat - halfSize, patch.lng - halfSize],
+                      [patch.lat + halfSize, patch.lng + halfSize]
+                    ];
+                    return (
+                        <Rectangle
+                            key={`ndvi-patch-${farm.id}-${idx}`}
+                            bounds={bounds}
+                            pathOptions={{ color: 'transparent', fillColor: patch.color, fillOpacity: 0.4, weight: 0 }}
+                        >
+                            <Tooltip direction="top" offset={[0, -10]}>
+                                <div className="text-xs text-center">
+                                    <span className="font-bold" style={{ color: patch.color }}>
+                                        NDVI: {patch.value.toFixed(4)}
+                                    </span>
+                                    <br/>
+                                    {patch.status}
                                 </div>
-                              ))}
+                            </Tooltip>
+                        </Rectangle>
+                    )
+                  })}
+
+                  {/* Render True Database Problem Pixels (Pixel-wise) */}
+                  {hotspots
+                    .filter((spot: any) => isPointInPolygon({lat: spot.lat, lng: spot.lng}, farm.polygon_coordinates))
+                    .map((spot, idx) => {
+                    const halfSize = 0.000045; // Roughly 5x5m rectangle for a 10m pixel
+                    const bounds: [[number, number], [number, number]] = [
+                      [spot.lat - halfSize, spot.lng - halfSize],
+                      [spot.lat + halfSize, spot.lng + halfSize]
+                    ];
+                    
+                    return (
+                      <Rectangle 
+                        key={`hotspot-${farm.id}-${spot.id}`}
+                        bounds={bounds}
+                        pathOptions={{ 
+                          color: spot.color, 
+                          fillColor: spot.color, 
+                          fillOpacity: 0.6, 
+                          weight: 1,
+                          dashArray: '2, 2'
+                        }}
+                        className="animate-pulse"
+                      >
+                        <Popup>
+                          <div className="p-1 min-w-[150px] dark:bg-gray-800 dark:text-white">
+                            <h4 className="font-bold text-gray-900 dark:text-white mb-1">{spot.name}</h4>
+                            <p className="text-sm font-semibold" style={{ color: spot.color }}>
+                              {spot.category} (NDVI: {spot.ndvi.toFixed(2)})
+                            </p>
+                            <div className="mt-2">
+                              <p className="text-xs font-semibold text-gray-600 dark:text-gray-400 border-b dark:border-gray-700 pb-1 mb-1">{t('scanHistoryTracker')}</p>
+                              <div className="max-h-[100px] overflow-y-auto space-y-1">
+                                {spot.history.slice().reverse().map((h: any, i: number) => (
+                                  <div key={i} className="flex justify-between text-xs">
+                                    <span className="text-gray-500 dark:text-gray-400">{t('scanWord')} {spot.history.length - i}</span>
+                                    <span className="font-mono font-medium" style={{ color: h.ndvi_value < 0.3 ? '#ef4444' : (h.ndvi_value > 0.6 ? '#2ecc71' : '#f59e0b') }}>
+                                      {h.ndvi_value.toFixed(2)}
+                                    </span>
+                                  </div>
+                                ))}
+                              </div>
                             </div>
                           </div>
-                        </div>
-                      </Popup>
-                      <Tooltip direction="top" offset={[0, -10]}>
-                        <div className="text-xs text-center">
-                          <span className="font-bold" style={{ color: spot.color }}>
-                            {spot.name}
-                          </span>
-                          <br/>
-                          NDVI: {spot.ndvi.toFixed(2)}
-                        </div>
-                      </Tooltip>
-                    </CircleMarker>
-                  ))}
+                        </Popup>
+                        <Tooltip direction="top" offset={[0, -10]}>
+                          <div className="text-xs text-center">
+                            <span className="font-bold" style={{ color: spot.color }}>
+                              {spot.name}
+                            </span>
+                            <br/>
+                            NDVI: {spot.ndvi.toFixed(2)}
+                          </div>
+                        </Tooltip>
+                      </Rectangle>
+                    );
+                  })}
                 </React.Fragment>
               );
             })}
@@ -607,28 +723,36 @@ export function SatelliteMonitoringView() {
                         </td>
                         <td className="px-4 py-4">
                           {patches.length > 0 ? (
-                            <div className="flex flex-col gap-2">
-                              {patches.map((patch: any) => {
-                                const history = patch.scans || [];
-                                // take last 5 scans
-                                const recent = history.slice(-5);
-                                return (
-                                  <div key={`patch-hist-${patch.id}`} className="flex items-center gap-2 text-xs">
-                                    <span className="font-semibold text-gray-700 dark:text-gray-200 w-16 truncate" title={patch.name}>{patch.name}:</span>
-                                    <div className="flex items-center gap-1">
-                                      {recent.map((h: any, i: number) => {
-                                        const hColor = h.ndvi_value < 0.3 ? 'text-red-600' : (h.ndvi_value > 0.6 ? 'text-green-600' : 'text-orange-500');
-                                        return (
-                                          <React.Fragment key={i}>
-                                            <span className={`font-mono ${hColor}`}>{h.ndvi_value.toFixed(2)}</span>
-                                            {i < recent.length - 1 && <span className="text-gray-300">→</span>}
-                                          </React.Fragment>
-                                        );
-                                      })}
+                            <div className="flex flex-col gap-2 max-h-[120px] overflow-y-auto pr-2 custom-scrollbar">
+                              {(() => {
+                                // Sort patches by worst (lowest) NDVI on their most recent scan
+                                const sortedPatches = [...patches].sort((a, b) => {
+                                  const aLast = a.scans && a.scans.length > 0 ? a.scans[a.scans.length - 1].ndvi_value : 1;
+                                  const bLast = b.scans && b.scans.length > 0 ? b.scans[b.scans.length - 1].ndvi_value : 1;
+                                  return aLast - bLast;
+                                });
+                                
+                                return sortedPatches.map((patch: any) => {
+                                  const history = patch.scans || [];
+                                  const recent = history.slice(-5);
+                                  return (
+                                    <div key={`patch-hist-${patch.id}`} className="flex items-center gap-2 text-xs">
+                                      <span className="font-semibold text-gray-700 dark:text-gray-200 w-16 shrink-0 truncate" title={patch.name}>{patch.name}:</span>
+                                      <div className="flex items-center gap-1">
+                                        {recent.map((h: any, i: number) => {
+                                          const hColor = h.ndvi_value < 0.4 ? 'text-red-600' : (h.ndvi_value < 0.6 ? 'text-orange-500' : 'text-green-600');
+                                          return (
+                                            <React.Fragment key={i}>
+                                              <span className={`font-mono ${hColor}`}>{h.ndvi_value.toFixed(2)}</span>
+                                              {i < recent.length - 1 && <span className="text-gray-300">→</span>}
+                                            </React.Fragment>
+                                          );
+                                        })}
+                                      </div>
                                     </div>
-                                  </div>
-                                );
-                              })}
+                                  );
+                                });
+                              })()}
                             </div>
                           ) : (
                             <span className="text-gray-400 text-xs">{t('noPatchesTracked')}</span>
@@ -645,6 +769,15 @@ export function SatelliteMonitoringView() {
                                 {t('uplinkActive')}
                               </div>
                             )}
+                             <Button 
+                              variant="outline" 
+                              size="sm"
+                              className="text-indigo-600 border-indigo-200 hover:bg-indigo-50 dark:text-indigo-400 dark:border-indigo-800 dark:hover:bg-indigo-900/30"
+                              onClick={() => openImageViewer(farm)}
+                              title={t('viewSatelliteImage') || "View Satellite Image"}
+                             >
+                               <Layers className="w-4 h-4" />
+                             </Button>
                              <Button 
                               variant="outline" 
                               size="sm" 
@@ -670,6 +803,114 @@ export function SatelliteMonitoringView() {
       {!isFullscreen && (
         <div className="mt-4 text-xs text-gray-500 dark:text-gray-400 flex justify-between items-center flex-shrink-0">
           <p>{t('mapCredits')}</p>
+        </div>
+      )}
+
+      {/* Satellite Deletion Modal */}
+      {farmToDelete !== null && (
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-sm animate-in fade-in duration-300">
+          <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden animate-in zoom-in-95 duration-300 border border-red-100 dark:border-red-900/50 relative">
+            {/* Radar/Satellite Header */}
+            <div className="h-40 bg-slate-900 relative overflow-hidden flex items-center justify-center">
+              {/* Radar sweep effect */}
+              <div className="absolute inset-0 border-[50px] border-green-500/10 rounded-full scale-150 animate-[ping_3s_linear_infinite]" />
+              <div className="absolute inset-0 border-[25px] border-green-400/20 rounded-full scale-110 animate-[ping_2s_linear_infinite]" />
+              
+              <Satellite className="w-14 h-14 text-red-500 z-10 animate-pulse" />
+              <div className="absolute w-full h-1 bg-red-500/50 blur-[2px] top-1/2 -translate-y-1/2 animate-[spin_4s_linear_infinite] origin-center z-0" />
+            </div>
+
+            <div className="p-6 text-center">
+              <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-2">{t('confirmDeleteFarm') || 'Deorbit Farm?'}</h3>
+              <p className="text-sm text-gray-500 dark:text-gray-400 mb-6">
+                Warning: You are about to permanently delete this farm and all its satellite tracking history. This action cannot be reversed.
+              </p>
+              <div className="flex gap-3">
+                <Button 
+                  variant="outline" 
+                  className="flex-1"
+                  onClick={() => setFarmToDelete(null)}
+                >
+                  Abort
+                </Button>
+                <Button 
+                  variant="destructive" 
+                  className="flex-1 bg-red-600 hover:bg-red-700 text-white"
+                  onClick={() => confirmDeleteFarm(farmToDelete)}
+                >
+                  Confirm Deletion
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Satellite Image Viewer Modal */}
+      {imageViewerFarm !== null && (
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl w-[95vw] h-[95vh] overflow-hidden animate-in zoom-in-95 duration-200 border border-gray-200 dark:border-gray-800 relative flex flex-col">
+            
+            <div className="flex items-center justify-between p-4 border-b border-gray-100 dark:border-gray-800">
+              <div>
+                <h3 className="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                  <Satellite className="w-5 h-5 text-indigo-500" /> 
+                  {imageViewerFarm.name} Satellite View
+                </h3>
+                {farmImages[imageViewerFarm.id] && farmImages[imageViewerFarm.id].datetime && (
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                    Captured on: {new Date(farmImages[imageViewerFarm.id].datetime).toLocaleString()}
+                  </p>
+                )}
+                {farmImages[imageViewerFarm.id] && farmImages[imageViewerFarm.id].mean_ndvi !== undefined && (
+                  <div className="flex gap-4 mt-2">
+                    <span className="text-xs font-semibold text-gray-700 dark:text-gray-300 bg-gray-200 dark:bg-gray-800 px-2 py-1 rounded-md">
+                      Mean NDVI: {farmImages[imageViewerFarm.id].mean_ndvi.toFixed(4)}
+                    </span>
+                    <span className="text-xs font-semibold text-gray-700 dark:text-gray-300 bg-gray-200 dark:bg-gray-800 px-2 py-1 rounded-md">
+                      Min NDVI: {farmImages[imageViewerFarm.id].min_ndvi.toFixed(4)}
+                    </span>
+                    <span className="text-xs font-semibold text-gray-700 dark:text-gray-300 bg-gray-200 dark:bg-gray-800 px-2 py-1 rounded-md">
+                      Max NDVI: {farmImages[imageViewerFarm.id].max_ndvi.toFixed(4)}
+                    </span>
+                  </div>
+                )}
+              </div>
+              <button onClick={() => setImageViewerFarm(null)} className="p-2 bg-gray-100 dark:bg-gray-800 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors">
+                <X className="w-5 h-5 text-gray-600 dark:text-gray-300" />
+              </button>
+            </div>
+
+            <div className="p-6 bg-gray-50 dark:bg-gray-950 flex flex-col items-center justify-center flex-grow overflow-hidden">
+              {loadingImage ? (
+                <div className="flex flex-col items-center justify-center text-indigo-500 h-full">
+                  <Loader2 className="w-10 h-10 animate-spin mb-4" />
+                  <p className="text-sm font-medium animate-pulse">Establishing uplink to Copernicus Sentinel-2...</p>
+                </div>
+              ) : (farmImages[imageViewerFarm.id]?.big_image_base64 || farmImages[imageViewerFarm.id]?.latest_image_base64) ? (
+                <div className="relative rounded-xl overflow-hidden border-4 border-white dark:border-gray-800 shadow-xl w-full h-full group flex items-center justify-center bg-black/5">
+                  <img 
+                    src={farmImages[imageViewerFarm.id].big_image_base64 || farmImages[imageViewerFarm.id].latest_image_base64} 
+                    alt="Satellite view" 
+                    className="w-full h-full object-contain"
+                  />
+                  <div className="absolute bottom-3 left-3 bg-black/70 backdrop-blur-md px-3 py-1.5 rounded-lg border border-white/10 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <p className="text-xs font-mono text-white flex items-center gap-2">
+                      <Layers className="w-3.5 h-3.5 text-blue-400" />
+                      {farmImages[imageViewerFarm.id].satellite || 'Sentinel-2'} True Color
+                    </p>
+                  </div>
+                </div>
+              ) : (
+                <div className="text-center text-gray-500 dark:text-gray-400 flex flex-col items-center justify-center h-full">
+                  <Satellite className="w-12 h-12 mb-3 opacity-20" />
+                  <p>Could not retrieve satellite imagery for this location.</p>
+                  <p className="text-xs mt-1 opacity-70">{farmImages[imageViewerFarm.id]?.image_error || 'No image data available.'}</p>
+                </div>
+              )}
+            </div>
+            
+          </div>
         </div>
       )}
     </Card>

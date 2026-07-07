@@ -308,12 +308,14 @@ export default function App() {
         onLogin={() => setIsAuthenticated(true)}
         onSwitchToRegister={() => setAuthMode('register')}
         onSwitchToForgotPassword={() => setAuthMode('forgot-password')}
+        onBackToLanding={() => setAuthMode('landing')}
       />
     ) : (
       <Register
         onRegister={() => setIsAuthenticated(true)}
         onSwitchToLogin={() => setAuthMode('login')}
         onSwitchToVerifyEmail={() => setAuthMode('verify-email')}
+        onBackToLanding={() => setAuthMode('landing')}
       />
     );
   }

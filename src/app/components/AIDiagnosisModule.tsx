@@ -6,6 +6,70 @@ import { toast } from 'sonner';
 import { TreatmentRecommendation } from './TreatmentRecommendation';
 import { useTranslation } from '../utils/translations';
 
+const checkBlurriness = (file: File): Promise<boolean> => {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d', { willReadFrequently: true });
+      if (!ctx) { resolve(false); return; }
+      
+      const MAX_SIZE = 400;
+      let width = img.width;
+      let height = img.height;
+      
+      if (width > height) {
+        if (width > MAX_SIZE) {
+          height *= MAX_SIZE / width;
+          width = MAX_SIZE;
+        }
+      } else {
+        if (height > MAX_SIZE) {
+          width *= MAX_SIZE / height;
+          height = MAX_SIZE;
+        }
+      }
+      width = Math.floor(width);
+      height = Math.floor(height);
+      
+      canvas.width = width;
+      canvas.height = height;
+      ctx.drawImage(img, 0, 0, width, height);
+      
+      const imageData = ctx.getImageData(0, 0, width, height);
+      const data = imageData.data;
+      
+      const gray = new Float32Array(width * height);
+      for (let i = 0; i < data.length; i += 4) {
+        gray[i / 4] = 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2];
+      }
+      
+      let sum = 0;
+      let sumSq = 0;
+      let count = 0;
+      
+      for (let y = 1; y < height - 1; y++) {
+        for (let x = 1; x < width - 1; x++) {
+          const idx = y * width + x;
+          const lap = gray[idx - width] + gray[idx - 1] + gray[idx + 1] + gray[idx + width] - 4 * gray[idx];
+          sum += lap;
+          sumSq += lap * lap;
+          count++;
+        }
+      }
+      
+      const mean = sum / count;
+      const variance = (sumSq / count) - (mean * mean);
+      
+      URL.revokeObjectURL(img.src);
+      // threshold 50 for blurriness, <50 is blurry.
+      resolve(variance < 50); 
+    };
+    img.onerror = () => resolve(false);
+    img.src = URL.createObjectURL(file);
+  });
+};
+
 const getFullUrl = (url: string | null) => {
   if (!url) return '';
   if (url.startsWith('http') || url.startsWith('blob:') || url.startsWith('data:')) {
@@ -26,6 +90,7 @@ export function AIDiagnosisModule() {
 
   // New state to control the Unknown Disease popup
   const [showUnknownModal, setShowUnknownModal] = useState(false);
+  const [showBlurryModal, setShowBlurryModal] = useState(false);
   const [showHeatmap, setShowHeatmap] = useState(false);
   const [isMaximized, setIsMaximized] = useState(false);
 
@@ -157,9 +222,17 @@ export function AIDiagnosisModule() {
     fetchModelInfo();
   }, []);
 
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0];
+      
+      const isBlurry = await checkBlurriness(file);
+      if (isBlurry) {
+        setShowBlurryModal(true);
+        if (fileInputRef.current) fileInputRef.current.value = '';
+        return;
+      }
+
       setSelectedFile(file);
       setPreviewUrl(URL.createObjectURL(file));
       setAnalysisResult(null);
@@ -621,6 +694,83 @@ export function AIDiagnosisModule() {
           </div>
         </div>
       )}
+      
+      {/* 🌫️ BLURRY IMAGE WARNING MODAL 🌫️ */}
+      {showBlurryModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-md animate-in fade-in duration-300">
+          <style>{`
+            @keyframes lensFocus {
+              0%, 100% { transform: scale(1); filter: blur(4px); border-color: rgba(249, 115, 22, 0.2); }
+              50% { transform: scale(1.05); filter: blur(0px); border-color: rgba(249, 115, 22, 1); }
+            }
+            @keyframes scanLine {
+              0% { top: 0%; opacity: 0; }
+              10% { opacity: 1; }
+              90% { opacity: 1; }
+              100% { top: 100%; opacity: 0; }
+            }
+            @keyframes popIn {
+              0% { transform: translateY(10px); opacity: 0; }
+              100% { transform: translateY(0); opacity: 1; }
+            }
+          `}</style>
+          
+          <div className="bg-white dark:bg-gray-900 rounded-3xl shadow-2xl max-w-md w-full p-8 relative overflow-hidden animate-in zoom-in-95 duration-300">
+            {/* Cool background gradient blob */}
+            <div className="absolute -top-24 -right-24 w-48 h-48 bg-orange-500/20 rounded-full blur-3xl pointer-events-none" />
+            <div className="absolute -bottom-24 -left-24 w-48 h-48 bg-red-500/10 rounded-full blur-3xl pointer-events-none" />
+            
+            <div className="mx-auto w-28 h-28 mb-6 relative flex items-center justify-center">
+              {/* Outer rotating dashed ring */}
+              <div className="absolute inset-0 border-4 border-dashed border-orange-300 dark:border-orange-700 rounded-full animate-[spin_6s_linear_infinite]" />
+              
+              {/* Inner lens that focuses */}
+              <div className="absolute inset-2 bg-gradient-to-tr from-orange-100 to-orange-50 dark:from-orange-900/40 dark:to-orange-800/40 rounded-full border-[3px] flex items-center justify-center" style={{ animation: 'lensFocus 3s ease-in-out infinite' }}>
+                <EyeOff className="w-10 h-10 text-orange-500 drop-shadow-md" />
+              </div>
+              
+              {/* Scanning line */}
+              <div className="absolute left-0 right-0 h-0.5 bg-orange-500 shadow-[0_0_8px_2px_rgba(249,115,22,0.6)]" style={{ animation: 'scanLine 2s linear infinite' }} />
+            </div>
+            
+            <div className="text-center mb-6">
+              <h3 className="text-2xl font-black text-gray-900 dark:text-white mb-2">{t('imageTooBlurry') || 'Image Too Blurry'}</h3>
+              <p className="text-gray-500 dark:text-gray-400 text-sm leading-relaxed px-2">
+                {t('imageTooBlurrySub') || 'Our AI needs a sharp, clear photo to make an accurate diagnosis. The uploaded image was out of focus.'}
+              </p>
+            </div>
+            
+            <div className="bg-orange-50 dark:bg-orange-950/20 rounded-2xl p-5 mb-8 border border-orange-100 dark:border-orange-900/30">
+              <h4 className="text-xs font-bold text-orange-800 dark:text-orange-400 uppercase tracking-wider mb-3">
+                Tips for a good photo:
+              </h4>
+              <ul className="space-y-3">
+                {[
+                  'Ensure good, natural lighting',
+                  'Hold your camera perfectly steady',
+                  'Focus directly on the infected area',
+                  'Keep a distance of 10-15 cm'
+                ].map((tip, idx) => (
+                  <li key={idx} className="flex items-start gap-2.5 opacity-0 text-sm text-gray-700 dark:text-gray-300" style={{ animation: `popIn 0.4s ease-out ${0.2 + idx * 0.15}s forwards` }}>
+                    <CircleCheck className="w-4 h-4 text-orange-500 mt-0.5 shrink-0" />
+                    <span className="font-medium">{tip}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+            
+            <div className="flex flex-col gap-3 relative z-10">
+              <Button
+                onClick={() => setShowBlurryModal(false)}
+                className="w-full bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600 text-white font-bold py-6 rounded-xl shadow-lg shadow-orange-500/25 transition-all hover:scale-[1.02] hover:-translate-y-1"
+              >
+                {t('tryAgain') || 'Take Another Photo'}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* 🔴 MAXIMIZED IMAGE LIGHTBOX MODAL 🔴 */}
       {isMaximized && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/90 backdrop-blur-md animate-in fade-in duration-200">

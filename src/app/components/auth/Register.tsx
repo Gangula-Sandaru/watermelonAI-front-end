@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Mail, Lock, User, ArrowRight, Sprout, Microscope, ChevronLeft, Loader2, Eye, EyeOff, ShieldCheck } from 'lucide-react';
+import { Mail, Lock, User, ArrowRight, ArrowLeft, Sprout, Microscope, ChevronLeft, Loader2, Eye, EyeOff, ShieldCheck } from 'lucide-react';
 import { toast } from 'sonner';
 
 const WatermelonIcon = ({ className }: { className?: string }) => (
@@ -24,9 +24,10 @@ interface RegisterProps {
   onRegister: () => void;
   onSwitchToLogin: () => void;
   onSwitchToVerifyEmail: () => void;
+  onBackToLanding: () => void;
 }
 
-export function Register({ onRegister, onSwitchToLogin, onSwitchToVerifyEmail }: RegisterProps) {
+export function Register({ onRegister, onSwitchToLogin, onSwitchToVerifyEmail, onBackToLanding }: RegisterProps) {
   const [step, setStep] = useState<'role' | 'form'>('role');
   const [role, setRole] = useState<'farmer' | 'researcher' | 'officer' | null>(null);
 
@@ -95,6 +96,14 @@ export function Register({ onRegister, onSwitchToLogin, onSwitchToVerifyEmail }:
           backgroundAttachment: 'fixed'
         }}
       />
+      
+      <button 
+        onClick={onBackToLanding}
+        className="fixed top-6 left-6 z-50 flex items-center justify-center p-3 rounded-full bg-white/80 backdrop-blur-md shadow-lg hover:shadow-xl hover:-translate-y-0.5 text-gray-500 hover:text-[#2E7D32] transition-all"
+        title="Back to Home"
+      >
+        <ArrowLeft className="w-5 h-5" />
+      </button>
       
       {/* -------------------- STEP 1: ROLE SELECTION -------------------- */}
       <div 

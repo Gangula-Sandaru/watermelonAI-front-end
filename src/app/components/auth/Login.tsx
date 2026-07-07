@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Mail, Lock, ArrowRight, Loader2, User, Eye, EyeOff } from 'lucide-react';
+import { Mail, Lock, ArrowRight, ArrowLeft, Loader2, User, Eye, EyeOff } from 'lucide-react';
 import { toast } from 'sonner';
 
 const WatermelonIcon = ({ className }: { className?: string }) => (
@@ -24,9 +24,10 @@ interface LoginProps {
   onLogin: () => void;
   onSwitchToRegister: () => void;
   onSwitchToForgotPassword: () => void;
+  onBackToLanding: () => void;
 }
 
-export function Login({ onLogin, onSwitchToRegister, onSwitchToForgotPassword }: LoginProps) {
+export function Login({ onLogin, onSwitchToRegister, onSwitchToForgotPassword, onBackToLanding }: LoginProps) {
   const [usernameOrEmail, setUsernameOrEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -85,6 +86,13 @@ export function Login({ onLogin, onSwitchToRegister, onSwitchToForgotPassword }:
             backgroundPosition: 'top right'
           }}
         />
+        <button 
+          onClick={onBackToLanding}
+          className="absolute top-6 left-6 z-20 flex items-center justify-center p-2 rounded-full bg-gray-50/80 hover:bg-green-50 text-gray-400 hover:text-[#2E7D32] transition-all"
+          title="Back to Home"
+        >
+          <ArrowLeft className="w-5 h-5" />
+        </button>
         <div className="relative z-10 p-10">
           <div className="flex justify-center mb-8">
              <div className="p-4 bg-gradient-to-br from-green-100 to-green-200 rounded-full shadow-inner">
