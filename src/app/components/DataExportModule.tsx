@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Card } from './ui/card';
 import { Button } from './ui/button';
-import { Download, FileText, Calendar, Filter, Database, FileSpreadsheet, CheckCircle2, Loader2, History, Trash2 } from 'lucide-react';
+import { Download, FileText, Calendar, Filter, Database, FileSpreadsheet, CheckCircle2, Loader2, History, Trash2, RefreshCw, XCircle } from 'lucide-react';
 import { useTranslation } from '../utils/translations';
 
 export const DataExportModule = ({ userData }: { userData: any }) => {
@@ -18,6 +18,8 @@ export const DataExportModule = ({ userData }: { userData: any }) => {
   const [exportSuccess, setExportSuccess] = useState(false);
   const [exportHistory, setExportHistory] = useState<any[]>([]);
   const [currentPage, setCurrentPage] = useState(1);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const itemsPerPage = 6;
   const [trendsData, setTrendsData] = useState<{
     total_scans: number;
@@ -41,7 +43,8 @@ export const DataExportModule = ({ userData }: { userData: any }) => {
 
   const API_BASE = "http://127.0.0.1:8000/api/management/exports/";
 
-  const fetchHistory = async () => {
+  const fetchHistory = useCallback(async (silent = false) => {
+    if (!silent) setIsRefreshing(true);
     try {
       const token = localStorage.getItem('access_token') || localStorage.getItem('token');
       const response = await fetch(API_BASE, {
@@ -50,10 +53,23 @@ export const DataExportModule = ({ userData }: { userData: any }) => {
       if (response.ok) {
         const data = await response.json();
         setExportHistory(data);
+        // Stop polling once all jobs are settled
+        const hasProcessing = data.some((item: any) => item.status === 'PROCESSING');
+        if (!hasProcessing && pollRef.current) {
+          clearInterval(pollRef.current);
+          pollRef.current = null;
+        }
       }
     } catch (err) {
-      console.error("Failed to fetch history", err);
+      console.error('Failed to fetch history', err);
+    } finally {
+      if (!silent) setIsRefreshing(false);
     }
+  }, []);
+
+  const startPolling = () => {
+    if (pollRef.current) clearInterval(pollRef.current);
+    pollRef.current = setInterval(() => fetchHistory(true), 2500);
   };
 
   const fetchTrendsPreview = async () => {
@@ -79,7 +95,10 @@ export const DataExportModule = ({ userData }: { userData: any }) => {
     if (!isOfficer && !isResearcher) {
       fetchTrendsPreview();
     }
-  }, [role, currentLanguage]);
+    return () => {
+      if (pollRef.current) clearInterval(pollRef.current);
+    };
+  }, [role, currentLanguage, fetchHistory]);
 
   useEffect(() => {
     const totalPages = Math.ceil(exportHistory.length / itemsPerPage);
@@ -91,7 +110,6 @@ export const DataExportModule = ({ userData }: { userData: any }) => {
   const handleExport = async () => {
     setIsExporting(true);
     setExportSuccess(false);
-    
     try {
       const token = localStorage.getItem('access_token') || localStorage.getItem('token');
       const response = await fetch(API_BASE, {
@@ -106,14 +124,14 @@ export const DataExportModule = ({ userData }: { userData: any }) => {
           format: selectedFormat
         })
       });
-
       if (response.ok) {
         setExportSuccess(true);
-        fetchHistory();
+        await fetchHistory();
+        startPolling();           // poll until PROCESSING → COMPLETED
         setTimeout(() => setExportSuccess(false), 3000);
       }
     } catch (err) {
-      console.error("Export failed", err);
+      console.error('Export failed', err);
     } finally {
       setIsExporting(false);
     }
@@ -313,7 +331,7 @@ export const DataExportModule = ({ userData }: { userData: any }) => {
                 </div>
               </div>
               <button 
-                onClick={async () => {
+                 onClick={async () => {
                   setIsExporting(true);
                   try {
                     const token = localStorage.getItem('access_token') || localStorage.getItem('token');
@@ -331,11 +349,12 @@ export const DataExportModule = ({ userData }: { userData: any }) => {
                     });
                     if (response.ok) {
                       setExportSuccess(true);
-                      fetchHistory();
+                      await fetchHistory();
+                      startPolling();
                       setTimeout(() => setExportSuccess(false), 3000);
                     }
                   } catch (err) {
-                    console.error("Export failed", err);
+                    console.error('Export failed', err);
                   } finally {
                     setIsExporting(false);
                   }
@@ -466,7 +485,15 @@ export const DataExportModule = ({ userData }: { userData: any }) => {
         <div className="flex flex-col">
           <div className="flex items-center gap-2 mb-4">
             <History className="w-5 h-5 text-gray-500 dark:text-gray-400" />
-            <h4 className="font-bold text-gray-800 dark:text-white">{t('exportHistoryTitle')}</h4>
+            <h4 className="font-bold text-gray-800 dark:text-white flex-1">{t('exportHistoryTitle')}</h4>
+            <button
+              onClick={() => fetchHistory()}
+              disabled={isRefreshing}
+              className="p-1.5 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-500 dark:text-gray-400 transition-all disabled:opacity-40"
+              title="Refresh history"
+            >
+              <RefreshCw size={13} className={isRefreshing ? 'animate-spin' : ''} />
+            </button>
           </div>
 
           <div className="bg-muted/50 dark:bg-gray-900/50 border-2 border-dashed border-gray-200 dark:border-gray-700 rounded-lg p-4 flex-1">
@@ -507,11 +534,21 @@ export const DataExportModule = ({ userData }: { userData: any }) => {
                                 <FileText size={16} />
                               </div>
                               <div>
-                                <div className="flex items-center gap-2">
+                              <div className="flex items-center gap-2">
                                   <p className="text-xs font-bold text-gray-900 dark:text-white">{item.export_id}</p>
-                                  <span className={`text-[9px] px-1.5 py-0.5 rounded-full font-bold uppercase ${item.status === 'COMPLETED' ? 'bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-400' : 'bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-400'}`}>
-                                    {item.status}
-                                  </span>
+                                  {item.status === 'PROCESSING' ? (
+                                    <span className="flex items-center gap-1 text-[9px] px-1.5 py-0.5 rounded-full font-bold uppercase bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-400">
+                                      <Loader2 size={9} className="animate-spin" /> Processing
+                                    </span>
+                                  ) : item.status === 'COMPLETED' ? (
+                                    <span className="text-[9px] px-1.5 py-0.5 rounded-full font-bold uppercase bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-400">
+                                      {item.status}
+                                    </span>
+                                  ) : (
+                                    <span className="text-[9px] px-1.5 py-0.5 rounded-full font-bold uppercase bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-400">
+                                      {item.status}
+                                    </span>
+                                  )}
                                 </div>
                                 <p className="text-[10px] text-gray-500 dark:text-gray-400">
                                   {(item.data_types ? (Array.isArray(item.data_types) ? item.data_types.join(', ') : item.data_types) : (item.data_type || 'Data')).toUpperCase()} • {new Date(item.created_at).toLocaleDateString()} • {(item.format || 'csv').toUpperCase()} • {item.file_size || '0 KB'}

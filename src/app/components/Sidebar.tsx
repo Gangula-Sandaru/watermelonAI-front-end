@@ -14,15 +14,17 @@ export function Sidebar({ activeSection, setActiveSection, onLogout, userData, u
   const role = userData?.role?.toLowerCase();
   const isOfficer = role?.includes('officer');
   const isAdmin = role === 'admin' || role === 'superadmin' || (userData as any)?.is_superuser === true;
-  const effectiveRole = isAdmin ? 'admin' : (isOfficer ? 'officer' : 'farmer');
+  const isResearcher = role === 'researcher';
+  const effectiveRole = isAdmin ? 'admin' : (isOfficer ? 'officer' : (isResearcher ? 'researcher' : 'farmer'));
 
   const menuItems = [
-    { id: 'dashboard', icon: LayoutDashboard, roles: ['farmer', 'officer', 'admin'] },
-    { id: 'satellite', icon: Satellite, roles: ['farmer', 'researcher'] },
+    { id: 'dashboard', icon: LayoutDashboard, roles: ['farmer', 'officer', 'admin', 'researcher'] },
+    { id: 'satellite', icon: Satellite, roles: ['farmer'] },
     { id: 'diagnosis', icon: Brain, roles: ['farmer'] },
     { id: 'communications', icon: MessageSquare, roles: ['farmer', 'officer'] },
     { id: 'expert-review', icon: ShieldAlert, roles: ['officer'] },
     { id: 'ai-training', icon: Database, roles: ['researcher', 'admin'] },
+    { id: 'satellite-insights', icon: Satellite, roles: ['researcher'], label: 'Satellite Insights', subtitle: 'NDVI & export data' },
     { id: 'escalate', icon: ShieldAlert, roles: ['farmer'] },
     { id: 'data', icon: FileText, roles: ['farmer', 'officer', 'researcher'] },
     { id: 'settings', icon: Settings, roles: ['farmer', 'officer', 'researcher', 'admin'] },
@@ -57,8 +59,9 @@ export function Sidebar({ activeSection, setActiveSection, onLogout, userData, u
             if (item.id === 'expert-review') translationKey = 'expertReview';
             if (item.id === 'ai-training') translationKey = 'aiTraining';
 
-            const translatedLabel = t(translationKey as any);
-            const translatedSubtitle = t(`${translationKey}Subtitle` as any);
+            // Items with a hardcoded label (no translation key) use their label directly
+            const translatedLabel    = (item as any).label    ?? t(translationKey as any);
+            const translatedSubtitle = (item as any).subtitle ?? t(`${translationKey}Subtitle` as any);
 
             return (
               <li key={item.id}>

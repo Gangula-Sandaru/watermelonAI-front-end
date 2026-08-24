@@ -43,6 +43,7 @@ export function AITrainingCenter() {
   const [data, setData] = useState<TrainingData[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+  const [downloadingImages, setDownloadingImages] = useState(false);
 
   const fetchData = async () => {
     try {
@@ -80,12 +81,11 @@ export function AITrainingCenter() {
   };
 
   const handleDownloadImages = async () => {
+    setDownloadingImages(true);
     try {
       const token = localStorage.getItem('access_token');
       const response = await fetch('http://127.0.0.1:8000/api/escalation/training-data/images/', {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
+        headers: { 'Authorization': `Bearer ${token}` }
       });
       if (response.ok) {
         const blob = await response.blob();
@@ -96,12 +96,16 @@ export function AITrainingCenter() {
         linkElement.click();
         window.URL.revokeObjectURL(url);
         toast.success(t('imagesDownloadedSuccess'));
+      } else if (response.status === 403) {
+        toast.error('Access denied — researcher or admin role required.');
       } else {
         toast.error(t('failedDownloadImages'));
       }
     } catch (error) {
-      console.error("Download error", error);
+      console.error('Download error', error);
       toast.error(t('failedDownloadImages'));
+    } finally {
+      setDownloadingImages(false);
     }
   };
 
@@ -188,9 +192,11 @@ export function AITrainingCenter() {
                 <FileJson size={16} />
                 {t('jsonBtn')}
               </Button>
-              <Button onClick={handleDownloadImages} className="bg-[#1976D2] hover:bg-[#1565C0] text-white rounded-xl px-4 py-2 flex items-center gap-2 font-bold shadow-sm">
-                <Download size={16} />
-                {t('imagesZipBtn')}
+              <Button onClick={handleDownloadImages} disabled={downloadingImages} className="bg-[#1976D2] hover:bg-[#1565C0] text-white rounded-xl px-4 py-2 flex items-center gap-2 font-bold shadow-sm disabled:opacity-60">
+                {downloadingImages
+                  ? <Loader2 size={16} className="animate-spin" />
+                  : <Download size={16} />}
+                {downloadingImages ? 'Downloading…' : t('imagesZipBtn')}
               </Button>
             </div>
           </div>

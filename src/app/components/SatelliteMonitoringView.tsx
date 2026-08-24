@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, memo } from 'react';
 import { Card } from './ui/card';
-import { Satellite, Layers, ZoomIn, Download, Plus, Save, X, Search, MapPin, Maximize, Minimize, Trash2, Navigation, Edit2, Check, Loader2 } from 'lucide-react';
+import { Satellite, Layers, ZoomIn, Download, Plus, Save, X, Search, MapPin, Maximize, Minimize, Trash2, Navigation, Edit2, Check, Loader2, Cloud, CloudRain, AlertTriangle, Info, Eye } from 'lucide-react';
 import { Button } from './ui/button';
 import { MapContainer, TileLayer, Polygon, Marker, Popup, useMap, useMapEvents, CircleMarker, Tooltip, Rectangle } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
@@ -19,52 +19,399 @@ let DefaultIcon = L.icon({
 L.Marker.prototype.options.icon = DefaultIcon;
 
 // Map controller to handle flying to search results
-function MapController({ center, zoom }: { center: [number, number], zoom: number }) {
+const MapController = memo(function MapController({ center, zoom }: { center: [number, number], zoom: number }) {
   const map = useMap();
   useEffect(() => {
     map.flyTo(center, zoom);
   }, [center, zoom, map]);
   return null;
-}
+});
 
 // Force Leaflet to update its internal size representation when fullscreen toggles
-function MapResizer({ isFullscreen }: { isFullscreen: boolean }) {
+const MapResizer = memo(function MapResizer({ isFullscreen }: { isFullscreen: boolean }) {
   const map = useMap();
   useEffect(() => {
-    // Wait for any CSS transitions (like fullscreen expand) to finish before invalidating
     const timeout = setTimeout(() => {
       map.invalidateSize();
     }, 300);
     return () => clearTimeout(timeout);
   }, [isFullscreen, map]);
   return null;
-}
+});
 
-// Ray-casting algorithm to check if a point is inside a polygon
+// Ray-casting algorithm to check if a point is inside a polygon bounding box (fast pre-check)
+const isPointInBBox = (lat: number, lng: number, minLat: number, maxLat: number, minLng: number, maxLng: number) => {
+  return lat >= minLat && lat <= maxLat && lng >= minLng && lng <= maxLng;
+};
+
+// Full ray-casting polygon test (only called after bbox pre-check passes)
 const isPointInPolygon = (point: {lat: number, lng: number}, polygon: {lat: number, lng: number}[]) => {
   const x = point.lng, y = point.lat;
   let inside = false;
   for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
     const xi = polygon[i].lng, yi = polygon[i].lat;
     const xj = polygon[j].lng, yj = polygon[j].lat;
-    
     const intersect = ((yi > y) !== (yj > y)) && (x < (xj - xi) * (y - yi) / (yj - yi) + xi);
     if (intersect) inside = !inside;
   }
   return inside;
 };
 
+// Compute polygon bounding box once with safety margin
+const getPolygonBBox = (polygon: {lat: number, lng: number}[]) => {
+  let minLat = Infinity, maxLat = -Infinity, minLng = Infinity, maxLng = -Infinity;
+  for (const p of polygon) {
+    if (p.lat < minLat) minLat = p.lat;
+    if (p.lat > maxLat) maxLat = p.lat;
+    if (p.lng < minLng) minLng = p.lng;
+    if (p.lng > maxLng) maxLng = p.lng;
+  }
+  const pad = 0.0005; // Safety margin to avoid edge clipping
+  return { minLat: minLat - pad, maxLat: maxLat + pad, minLng: minLng - pad, maxLng: maxLng + pad };
+};
+
+// Robust pixel color resolver to guarantee every pixel has a color
+const resolvePatchColor = (patch: any) => {
+  if (patch.is_cloud || patch.status === 'cloud') return '#94a3b8'; // Slate/Cloud
+  
+  const val = typeof patch.value === 'number' ? patch.value : (typeof patch.ndvi === 'number' ? patch.ndvi : null);
+  if (val !== null) {
+    if (val < 0.2) return '#ef4444'; // deep red / barren
+    if (val < 0.4) return '#ff4b6b'; // red / severe stress
+    if (val < 0.6) return '#f59e0b'; // orange / moderate
+    if (val < 0.75) return '#84cc16'; // light green / healthy
+    return '#2ecc71'; // vibrant green / optimal
+  }
+
+  if (patch.color) {
+    if (patch.color === 'red') return '#ff4b6b';
+    if (patch.color === 'orange') return '#f59e0b';
+    if (patch.color === 'green') return '#2ecc71';
+    return patch.color;
+  }
+  
+  return '#2ecc71';
+};
+
 // Map events to handle drawing
-function MapInteraction({ isCreating, points, setPoints }: { isCreating: boolean, points: any[], setPoints: any }) {
+const MapInteraction = memo(function MapInteraction({ isCreating, points, setPoints }: { isCreating: boolean, points: any[], setPoints: any }) {
   useMapEvents({
     click(e) {
       if (isCreating) {
-        setPoints([...points, { lat: e.latlng.lat, lng: e.latlng.lng }]);
+        setPoints((prev: any[]) => [...prev, { lat: e.latlng.lat, lng: e.latlng.lng }]);
       }
     }
   });
   return null;
-}
+});
+
+// Helper to guarantee newest scan is always picked
+const getLatestScan = (farm: any) => {
+  if (!farm?.scans || farm.scans.length === 0) return null;
+  return [...farm.scans].sort((a: any, b: any) => {
+    const timeA = new Date(a.scan_date).getTime() || 0;
+    const timeB = new Date(b.scan_date).getTime() || 0;
+    if (timeB !== timeA) return timeB - timeA;
+    return (b.id || 0) - (a.id || 0);
+  })[0];
+};
+
+// Memoized farm overlay (NDVI patches + problem hotspots) — prevents re-render when unrelated state changes
+const FarmOverlay = memo(function FarmOverlay({ farm, visibleOverlay, problemHotspots, openCloudWarning, t }: any) {
+  const coords = farm.polygon_coordinates || [];
+  if (coords.length < 3) return null;
+
+  // Always resolve the absolute latest scan
+  const latestScan = useMemo(() => getLatestScan(farm), [farm]);
+
+  const isStressed = latestScan?.status === 'alert' || latestScan?.status === 'stressed';
+  let color = '#2ecc71';
+  if (isStressed) color = '#ff4b6b';
+  else if (latestScan?.status === 'moderate') color = '#f59e0b';
+
+  const polyPositions: [number, number][] = useMemo(
+    () => coords.map((p: any) => [p.lat, p.lng]),
+    [coords]
+  );
+
+  // Bounding box for fast point-in-polygon pre-filtering
+  const bbox = useMemo(() => getPolygonBBox(coords), [coords]);
+
+  // Previous scan for change-detection
+  const previousScan = farm.scans && farm.scans.length > 1 ? farm.scans[1] : null;
+  const isBrandNewScan = !previousScan || (farm.scans && farm.scans.length <= 1);
+
+  const prevPatchMap = useMemo(() => {
+    if (!previousScan?.scan_data?.patches) return null;
+    const map = new Map<string, { value: number; status: string }>();
+    for (const p of previousScan.scan_data.patches) {
+      if (typeof p.lat === 'number' && typeof p.lng === 'number') {
+        const key = `${p.lat.toFixed(4)}_${p.lng.toFixed(4)}`;
+        map.set(key, { value: p.value, status: p.status });
+      }
+    }
+    return map;
+  }, [previousScan]);
+
+  // Full NDVI scan overlay from the latest scan
+  const ndviRects = useMemo(() => {
+    if (!visibleOverlay || !latestScan?.scan_data?.patches) return [];
+    return latestScan.scan_data.patches
+      .filter((p: any) =>
+        isPointInBBox(p.lat, p.lng, bbox.minLat, bbox.maxLat, bbox.minLng, bbox.maxLng) &&
+        isPointInPolygon({ lat: p.lat, lng: p.lng }, coords)
+      );
+  }, [visibleOverlay, latestScan, coords, bbox]);
+
+  // DB problem hotspots - pre-filtered and memoized
+  const visibleHotspots = useMemo(() => {
+    return problemHotspots.filter((s: any) =>
+      isPointInBBox(s.lat, s.lng, bbox.minLat, bbox.maxLat, bbox.minLng, bbox.maxLng) &&
+      isPointInPolygon({ lat: s.lat, lng: s.lng }, coords)
+    );
+  }, [problemHotspots, coords, bbox]);
+
+  const HALF = 0.000045;
+
+  return (
+    <React.Fragment>
+      <Polygon
+        positions={polyPositions}
+        pathOptions={{ color, fillColor: color, fillOpacity: 0.15, weight: 2 }}
+      >
+        <Popup>
+          <div className="p-1 min-w-[150px]">
+            <h4 className="font-bold text-gray-900 mb-1">{farm.name}</h4>
+            {latestScan ? (
+              <div>
+                <p className="text-sm font-semibold" style={{ color }}>
+                  {t('statusLabel')}: {latestScan.status.toUpperCase()}
+                </p>
+                <p className="text-xs text-gray-600 mt-1">
+                  {t('avgNdviIndex')}: {latestScan.ndvi_value.toFixed(2)}
+                </p>
+                <p className="text-xs text-gray-400 mt-1">
+                  {t('scannedLabel')}: {new Date(latestScan.scan_date).toLocaleDateString()}
+                </p>
+                <p className="text-xs mt-2 font-semibold text-gray-700">
+                  {t('problemPatches')}: <span className={problemHotspots.length > 0 ? "text-amber-600 font-bold" : "text-green-600 font-bold"}>{problemHotspots.length}</span>
+                </p>
+                {latestScan?.scan_data?.is_cloudy && (
+                  <div
+                    onClick={() => openCloudWarning(farm, latestScan)}
+                    className="mt-2 p-1.5 bg-amber-50 border border-amber-200 rounded flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <Cloud className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                    <span className="text-[10px] font-semibold text-amber-800">
+                      {latestScan.scan_data.cloud_coverage_percentage}% {t('cloudCoverLabel')}
+                    </span>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <p className="text-xs text-gray-500">{t('noScanData')}</p>
+            )}
+          </div>
+        </Popup>
+      </Polygon>
+
+      {/* Full NDVI scan overlay with glow-dim pulse on new scans and changed pixels */}
+      {ndviRects.map((patch: any, idx: number) => {
+        const pixelColor = resolvePatchColor(patch);
+
+        // Condition 1: Brand new scan (first scan on this farm)
+        // Condition 2: Re-scan where this specific pixel changed value/status
+        let shouldGlow = isBrandNewScan;
+        if (!shouldGlow && prevPatchMap) {
+          const key = `${patch.lat.toFixed(4)}_${patch.lng.toFixed(4)}`;
+          const prev = prevPatchMap.get(key);
+          if (prev) {
+            const diff = Math.abs(patch.value - prev.value);
+            if (diff >= 0.03 || patch.status !== prev.status) {
+              shouldGlow = true;
+            }
+          } else {
+            shouldGlow = true;
+          }
+        }
+
+        return (
+          <Rectangle
+            key={`ndvi-${farm.id}-${latestScan?.id || 0}-${idx}`}
+            bounds={[[patch.lat - HALF, patch.lng - HALF], [patch.lat + HALF, patch.lng + HALF]]}
+            pathOptions={{
+              color: pixelColor,
+              fillColor: pixelColor,
+              fillOpacity: shouldGlow ? 0.85 : 0.55,
+              weight: shouldGlow ? 1 : 0.5,
+              className: shouldGlow ? "ndvi-pixel-glow" : "",
+            }}
+          >
+            <Tooltip direction="top" offset={[0, -10]}>
+              <div className="text-xs text-center p-0.5">
+                <span className="font-bold" style={{ color: pixelColor }}>
+                  NDVI: {typeof patch.value === 'number' ? patch.value.toFixed(4) : patch.value}
+                </span>
+                <br/>
+                <span className="capitalize text-gray-700 dark:text-gray-200">
+                  {patch.status || 'Active'}
+                </span>
+              </div>
+            </Tooltip>
+          </Rectangle>
+        );
+      })}
+
+      {/* Active DB problem hotspots (orange/red) */}
+      {visibleHotspots.map((spot: any) => (
+        <Rectangle
+          key={`hs-${spot.id}`}
+          bounds={[[spot.lat - HALF, spot.lng - HALF], [spot.lat + HALF, spot.lng + HALF]]}
+          pathOptions={{ color: spot.color, fillColor: spot.color, fillOpacity: 0.6, weight: 1 }}
+        >
+          <Tooltip direction="top" offset={[0, -10]}>
+            <div className="text-xs text-center">
+              <span className="font-bold" style={{ color: spot.color }}>{spot.name}</span>
+              <br />NDVI: {spot.ndvi.toFixed(2)}
+            </div>
+          </Tooltip>
+        </Rectangle>
+      ))}
+    </React.Fragment>
+  );
+});
+
+// Memoized Table Row to prevent re-sorting patches and expensive DOM churn
+const FarmTableRow = memo(function FarmTableRow({
+  farm,
+  scanningFarmId,
+  openCloudWarning,
+  openImageViewer,
+  handleRescan,
+  t
+}: any) {
+  const latestScan = useMemo(() => getLatestScan(farm), [farm]);
+  const isStressed = latestScan?.status === 'alert' || latestScan?.status === 'stressed';
+  const patches = farm.patches || [];
+
+  const activeProblemPatchesCount = useMemo(() => {
+    return patches.filter((p: any) => {
+      const pScans = p.scans || [];
+      const latestPScan = pScans.length > 0 ? pScans[pScans.length - 1] : null;
+      return latestPScan ? latestPScan.ndvi_value < 0.6 : false;
+    }).length;
+  }, [patches]);
+
+  const sortedPatches = useMemo(() => {
+    if (!patches.length) return [];
+    return [...patches].sort((a, b) => {
+      const aLast = a.scans && a.scans.length > 0 ? a.scans[a.scans.length - 1].ndvi_value : 1;
+      const bLast = b.scans && b.scans.length > 0 ? b.scans[b.scans.length - 1].ndvi_value : 1;
+      return aLast - bLast;
+    });
+  }, [patches]);
+
+  return (
+    <tr className="hover:bg-muted/50 dark:hover:bg-gray-900/50 transition-colors">
+      <td className="px-4 py-4 font-medium text-gray-900 dark:text-white">
+        {farm.name}
+      </td>
+      <td className="px-4 py-4">
+        {latestScan ? (
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <span className={`px-2.5 py-1 rounded-full text-xs font-semibold ${isStressed ? 'text-red-600 bg-red-50 dark:bg-red-900/20' : (latestScan?.status === 'moderate' ? 'text-orange-600 bg-orange-50 dark:bg-orange-900/20' : 'text-green-600 bg-green-50 dark:bg-green-900/20')}`}>
+              {latestScan.status.toUpperCase()}
+            </span>
+            {latestScan?.scan_data && (latestScan.scan_data.is_cloudy || (latestScan.scan_data.cloud_coverage_percentage && latestScan.scan_data.cloud_coverage_percentage >= 20)) && (
+              <button 
+                onClick={() => openCloudWarning(farm, latestScan)}
+                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 dark:bg-amber-900/40 text-amber-800 dark:text-amber-300 hover:bg-amber-200 dark:hover:bg-amber-900/60 transition-colors border border-amber-300 dark:border-amber-700/50"
+                title={t('cloudWarningTitle')}
+              >
+                <Cloud className="w-3 h-3 text-amber-600 dark:text-amber-400" />
+                <span>{latestScan.scan_data.cloud_coverage_percentage}%</span>
+              </button>
+            )}
+          </div>
+        ) : <span className="text-gray-400 dark:text-gray-500">-</span>}
+      </td>
+      <td className="px-4 py-4 font-mono font-medium text-gray-700 dark:text-gray-300">
+        {latestScan ? latestScan.ndvi_value.toFixed(2) : '-'}
+      </td>
+      <td className="px-4 py-4 text-gray-600 dark:text-gray-400">
+        {activeProblemPatchesCount > 0 ? (
+          <span className="inline-flex items-center justify-center px-2 py-0.5 rounded-full bg-amber-100 dark:bg-amber-900/30 text-amber-800 dark:text-amber-300 font-bold text-xs">
+            {activeProblemPatchesCount}
+          </span>
+        ) : (
+          <span className="inline-flex items-center gap-1 text-xs text-green-600 dark:text-green-400 font-medium">
+            <Check className="w-3.5 h-3.5" /> {t('noneLabel')}
+          </span>
+        )}
+      </td>
+      <td className="px-4 py-4">
+        {sortedPatches.length > 0 ? (
+          <div className="flex flex-col gap-2 max-h-[120px] overflow-y-auto pr-2 custom-scrollbar">
+            {sortedPatches.map((patch: any) => {
+              const history = patch.scans || [];
+              const recent = history.slice(-5);
+              return (
+                <div key={`patch-hist-${patch.id}`} className="flex items-center gap-2 text-xs">
+                  <span className="font-semibold text-gray-700 dark:text-gray-200 w-16 shrink-0 truncate" title={patch.name}>{patch.name}:</span>
+                  <div className="flex items-center gap-1">
+                    {recent.map((h: any, i: number) => {
+                      const hColor = h.ndvi_value < 0.4 ? 'text-red-600' : (h.ndvi_value < 0.6 ? 'text-orange-500' : 'text-green-600');
+                      return (
+                        <React.Fragment key={i}>
+                          <span className={`font-mono ${hColor}`}>{h.ndvi_value.toFixed(2)}</span>
+                          {i < recent.length - 1 && <span className="text-gray-300">→</span>}
+                        </React.Fragment>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          <span className="text-gray-400 text-xs">{t('noPatchesTracked')}</span>
+        )}
+      </td>
+      <td className="px-4 py-4 text-xs text-gray-500 dark:text-gray-400">
+        {latestScan ? new Date(latestScan.scan_date).toLocaleDateString() : t('neverLabel')}
+      </td>
+      <td className="px-4 py-4">
+        <div className="flex items-center justify-end gap-3">
+          {scanningFarmId === farm.id && (
+            <div className="flex items-center text-blue-600 text-xs font-mono animate-pulse">
+              <Satellite className="w-4 h-4 mr-1.5" />
+              {t('uplinkActive')}
+            </div>
+          )}
+          <Button 
+            variant="outline" 
+            size="sm"
+            className="text-indigo-600 border-indigo-200 hover:bg-indigo-50 dark:text-indigo-400 dark:border-indigo-800 dark:hover:bg-indigo-900/30"
+            onClick={() => openImageViewer(farm)}
+            title={t('viewSatelliteImage') || "View Satellite Image"}
+          >
+            <Layers className="w-4 h-4" />
+          </Button>
+          <Button 
+            variant="outline" 
+            size="sm" 
+            disabled={scanningFarmId !== null}
+            onClick={() => handleRescan(farm.id)}
+            className="text-blue-600 dark:text-blue-400 border-blue-200 dark:border-blue-900 hover:bg-blue-50 dark:hover:bg-blue-900/30"
+          >
+            {scanningFarmId === farm.id ? <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" /> : <Satellite className="w-3.5 h-3.5 mr-1.5" />}
+            {scanningFarmId === farm.id ? t('scanningButton') : t('rescanButton')}
+          </Button>
+        </div>
+      </td>
+    </tr>
+  );
+});
 
 export function SatelliteMonitoringView() {
   const { t } = useTranslation();
@@ -73,24 +420,46 @@ export function SatelliteMonitoringView() {
   const [newFarmName, setNewFarmName] = useState('');
   const [points, setPoints] = useState<{lat: number, lng: number}[]>([]);
   const [loading, setLoading] = useState(true);
-  const [scanningFarmId, setScanningFarmId] = useState<number | null>(null);
-  const [visibleOverlays, setVisibleOverlays] = useState<{[key: number]: boolean}>({});
+  const [scanningFarmId, setScanningFarmId] = useState<string | number | null>(null);
+  const [visibleOverlays, setVisibleOverlays] = useState<{[key: string]: boolean}>({});
   
   // UI States
   const [isFullscreen, setIsFullscreen] = useState(false);
-  const [editingFarmId, setEditingFarmId] = useState<number | null>(null);
+  const [editingFarmId, setEditingFarmId] = useState<string | number | null>(null);
   const [editFarmName, setEditFarmName] = useState('');
-  const [farmToDelete, setFarmToDelete] = useState<number | null>(null);
+  const [farmToDelete, setFarmToDelete] = useState<string | number | null>(null);
   const [imageViewerFarm, setImageViewerFarm] = useState<any | null>(null);
-  const [farmImages, setFarmImages] = useState<{[key: number]: any}>({});
+  const [farmImages, setFarmImages] = useState<{[key: string]: any}>({});
   const [loadingImage, setLoadingImage] = useState<boolean>(false);
+  const [cloudWarningModal, setCloudWarningModal] = useState<{
+    isOpen: boolean;
+    farmName: string;
+    cloudCover: number;
+    scanDate?: string;
+    warning?: string;
+    farmId?: string | number;
+    farm?: any;
+  } | null>(null);
+
+  const openCloudWarning = useCallback((farm: any, scan?: any) => {
+    const latestScan = scan || (farm?.scans && farm.scans.length > 0 ? farm.scans[0] : null);
+    setCloudWarningModal({
+      isOpen: true,
+      farmName: farm?.name || 'Farm',
+      cloudCover: latestScan?.scan_data?.cloud_coverage_percentage || 0,
+      scanDate: latestScan?.scan_date,
+      warning: latestScan?.scan_data?.cloud_warning,
+      farmId: farm?.id,
+      farm: farm,
+    });
+  }, []);
 
   // Map State
   const [mapCenter, setMapCenter] = useState<[number, number]>([7.8731, 80.7718]); // Default to Sri Lanka
   const [mapZoom, setMapZoom] = useState(7);
   const [searchQuery, setSearchQuery] = useState('');
 
-  const fetchFarms = async () => {
+  const fetchFarms = useCallback(async () => {
     try {
       const token = localStorage.getItem('access_token') || localStorage.getItem('token');
       const response = await fetch('http://127.0.0.1:8000/api/satellite/farms/', {
@@ -115,12 +484,11 @@ export function SatelliteMonitoringView() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [loading]);
 
   useEffect(() => {
     fetchFarms();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [fetchFarms]);
 
   // Prevent scroll when fullscreen
   useEffect(() => {
@@ -159,7 +527,7 @@ export function SatelliteMonitoringView() {
       
       const payload = {
         name: newFarmName,
-        polygon_coordinates: points, // now just an array of {lat, lng}
+        polygon_coordinates: points, // array of {lat, lng}
         center_lat: points[0].lat,
         center_lng: points[0].lng
       };
@@ -179,17 +547,30 @@ export function SatelliteMonitoringView() {
       }
 
       if (response.ok) {
+        const createdFarm = await response.json();
         setIsCreating(false);
         setPoints([]);
         setNewFarmName('');
-        fetchFarms();
+        await fetchFarms();
+        
+        // Auto-center to the new farm on the map
+        if (createdFarm && createdFarm.center_lat && createdFarm.center_lng) {
+          setMapCenter([createdFarm.center_lat, createdFarm.center_lng]);
+          setMapZoom(16);
+        }
+      } else {
+        const errJson = await response.json().catch(() => null);
+        const errDetail = errJson ? JSON.stringify(errJson) : await response.text();
+        console.error("Failed to save farm:", response.status, errDetail);
+        alert(`Failed to save farm (Error ${response.status}): ${errDetail}`);
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error("Failed to save farm", err);
+      alert(`Network error saving farm: ${err?.message || err}`);
     }
   };
 
-  const handleRescan = async (id: number) => {
+  const handleRescan = useCallback(async (id: string | number) => {
     if (scanningFarmId) return; // Prevent multiple scans at once
     setScanningFarmId(id);
     
@@ -212,9 +593,24 @@ export function SatelliteMonitoringView() {
       });
       
       if (response.ok) {
+        const scanData = await response.json();
         await fetchFarms();
         // Show the overlay for this farm after scanning
         setVisibleOverlays(prev => ({ ...prev, [id]: true }));
+
+        // Check if the scan result has significant cloud coverage
+        const isCloudy = scanData?.scan_data?.is_cloudy || (scanData?.scan_data?.cloud_coverage_percentage && scanData.scan_data.cloud_coverage_percentage >= 20.0);
+        if (isCloudy) {
+          setCloudWarningModal({
+            isOpen: true,
+            farmName: farm?.name || 'Farm',
+            cloudCover: scanData?.scan_data?.cloud_coverage_percentage || 0,
+            scanDate: scanData?.scan_date,
+            warning: scanData?.scan_data?.cloud_warning,
+            farmId: id,
+            farm: farm,
+          });
+        }
       } else {
         const errorText = await response.text();
         console.error("Scan failed with status:", response.status, errorText);
@@ -225,13 +621,13 @@ export function SatelliteMonitoringView() {
     } finally {
       setScanningFarmId(null);
     }
-  };
+  }, [scanningFarmId, farms, fetchFarms]);
 
-  const handleDeleteFarm = (id: number) => {
+  const handleDeleteFarm = (id: string | number) => {
     setFarmToDelete(id);
   };
 
-  const confirmDeleteFarm = async (id: number) => {
+  const confirmDeleteFarm = async (id: string | number) => {
     try {
       const token = localStorage.getItem('access_token') || localStorage.getItem('token');
       const response = await fetch(`http://127.0.0.1:8000/api/satellite/farms/${id}/`, {
@@ -247,7 +643,7 @@ export function SatelliteMonitoringView() {
     }
   };
 
-  const handleEditFarmSave = async (id: number) => {
+  const handleEditFarmSave = async (id: string | number) => {
     try {
       const token = localStorage.getItem('access_token') || localStorage.getItem('token');
       const response = await fetch(`http://127.0.0.1:8000/api/satellite/farms/${id}/`, {
@@ -267,7 +663,7 @@ export function SatelliteMonitoringView() {
     }
   };
 
-  const openImageViewer = async (farm: any) => {
+  const openImageViewer = useCallback(async (farm: any) => {
     setImageViewerFarm(farm);
     
     // If we already fetched it, don't fetch again
@@ -294,7 +690,7 @@ export function SatelliteMonitoringView() {
     } finally {
       setLoadingImage(false);
     }
-  };
+  }, [farmImages]);
 
   const handleNavigateToFarm = (farm: any) => {
     if (farm.center_lat && farm.center_lng) {
@@ -394,10 +790,27 @@ export function SatelliteMonitoringView() {
                     </div>
                   ) : (
                     <>
-                      <h5 className="font-semibold text-sm text-gray-900 dark:text-white truncate pr-2 cursor-pointer hover:text-[#2ecc71]" onClick={() => handleNavigateToFarm(farm)}>
-                        {farm.name}
-                      </h5>
-                      <div className="flex gap-2 text-gray-400 dark:text-gray-500">
+                      <div className="flex flex-col min-w-0 pr-2">
+                        <h5 className="font-semibold text-sm text-gray-900 dark:text-white truncate cursor-pointer hover:text-[#2ecc71]" onClick={() => handleNavigateToFarm(farm)}>
+                          {farm.name}
+                        </h5>
+                        {(() => {
+                          const latestScan = farm.scans && farm.scans.length > 0 ? farm.scans[0] : null;
+                          const isCloudy = latestScan?.scan_data?.is_cloudy || (latestScan?.scan_data?.cloud_coverage_percentage && latestScan.scan_data.cloud_coverage_percentage >= 20);
+                          if (!isCloudy) return null;
+                          return (
+                            <button
+                              onClick={(e) => { e.stopPropagation(); openCloudWarning(farm, latestScan); }}
+                              className="inline-flex items-center gap-1 mt-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-100 dark:bg-amber-900/40 text-amber-800 dark:text-amber-300 hover:bg-amber-200 dark:hover:bg-amber-900/60 w-fit transition-colors border border-amber-200 dark:border-amber-700/50"
+                              title={t('cloudWarningTitle')}
+                            >
+                              <Cloud className="w-2.5 h-2.5 shrink-0" />
+                              <span>{latestScan.scan_data.cloud_coverage_percentage}% {t('cloudCoverLabel')}</span>
+                            </button>
+                          );
+                        })()}
+                      </div>
+                      <div className="flex gap-2 text-gray-400 dark:text-gray-500 shrink-0">
                         <button onClick={(e) => { e.stopPropagation(); handleRescan(farm.id); }} disabled={scanningFarmId !== null} className={`${scanningFarmId === farm.id ? 'text-green-500' : 'hover:text-green-500'} p-1 transition-colors`} title={t('requestNewScan')}>
                           {scanningFarmId === farm.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Satellite className="w-3.5 h-3.5" />}
                         </button>
@@ -478,168 +891,40 @@ export function SatelliteMonitoringView() {
               />
             )}
 
-            {/* Display all saved farms */}
+            {/* Display all saved farms using memoized FarmOverlay components */}
             {!isCreating && farms.map((farm) => {
-              const coords = farm.polygon_coordinates || [];
-              if (coords.length < 3) return null;
-
               const latestScan = farm.scans && farm.scans.length > 0 ? farm.scans[0] : null;
-              let color = '#2ecc71'; // healthy
-              const isStressed = latestScan?.status === 'alert' || latestScan?.status === 'stressed';
-              
-              if (isStressed) color = '#ff4b6b';
-              else if (latestScan?.status === 'moderate') color = '#f59e0b';
 
-              const polyPositions = coords.map((p: any) => [p.lat, p.lng]);
-              
-              // Read circular hotspots directly from the database patches!
-              let hotspots: any[] = [];
+              // Compute problem hotspots (memoized per farm via FarmOverlay)
+              const problemHotspots: any[] = [];
               if (farm.patches && farm.patches.length > 0) {
-                hotspots = farm.patches.map((patch: any) => {
-                  // Sort scans by ID (newest last) or assume they are ordered
+                for (const patch of farm.patches) {
                   const scans = patch.scans || [];
-                  const latestScan = scans.length > 0 ? scans[scans.length - 1] : null;
-                  
-                  const ndvi = latestScan ? latestScan.ndvi_value : 0.5;
-                  
-                  let color = '#2ecc71'; // Default green
-                  let category = 'Healthy';
-                  if (ndvi < 0.4) {
-                    color = '#ef4444'; // red
-                    category = 'Low (Severe Stress)';
-                  } else if (ndvi < 0.6) {
-                    color = '#f59e0b'; // orange
-                    category = 'Moderate Stress';
-                  }
-
-                  return {
+                  const lastScan = scans.length > 0 ? scans[scans.length - 1] : null;
+                  const ndvi = lastScan ? lastScan.ndvi_value : 0.5;
+                  if (ndvi >= 0.6) continue; // skip healthy
+                  problemHotspots.push({
                     id: patch.id,
                     name: patch.name,
                     lat: patch.center_lat,
                     lng: patch.center_lng,
-                    radius: patch.radius,
-                    ndvi: ndvi,
-                    category: category,
-                    color: color,
-                    history: scans
-                  };
-                });
+                    ndvi,
+                    color: ndvi < 0.4 ? '#ef4444' : '#f59e0b',
+                    category: ndvi < 0.4 ? 'Low (Severe Stress)' : 'Moderate Stress',
+                    history: scans,
+                  });
+                }
               }
 
               return (
-                <React.Fragment key={farm.id}>
-                  <Polygon 
-                    positions={polyPositions}
-                    pathOptions={{ color: color, fillColor: color, fillOpacity: 0.15, weight: 2 }}
-                  >
-                    <Popup>
-                      <div className="p-1 min-w-[150px] dark:bg-gray-800 dark:text-white">
-                        <h4 className="font-bold text-gray-900 dark:text-white mb-1">{farm.name}</h4>
-                        {latestScan ? (
-                          <div>
-                            <p className="text-sm font-semibold" style={{ color }}>
-                              {t('statusLabel')}: {latestScan.status.toUpperCase()}
-                            </p>
-                            <p className="text-xs text-gray-600 dark:text-gray-300 mt-1">
-                              {t('avgNdviIndex')}: {latestScan.ndvi_value.toFixed(2)}
-                            </p>
-                            <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
-                              {t('scannedLabel')}: {new Date(latestScan.scan_date).toLocaleDateString()}
-                            </p>
-                            <p className="text-xs mt-2 font-semibold text-gray-700 dark:text-gray-200">{t('problemPatches')}: {hotspots.length}</p>
-                          </div>
-                        ) : (
-                          <p className="text-xs text-gray-500">{t('noScanData')}</p>
-                        )}
-                      </div>
-                    </Popup>
-                  </Polygon>
-                  
-                  {/* Full NDVI Overlay from DB scan_data (shows green, orange, red - only after scan) */}
-                  {visibleOverlays[farm.id] && latestScan && latestScan.scan_data && latestScan.scan_data.patches && latestScan.scan_data.patches
-                    .filter((patch: any) => isPointInPolygon({lat: patch.lat, lng: patch.lng}, farm.polygon_coordinates))
-                    .map((patch: any, idx: number) => {
-                    const halfSize = 0.000045; // Roughly 5x5m rectangle for a 10m pixel
-                    const bounds: [[number, number], [number, number]] = [
-                      [patch.lat - halfSize, patch.lng - halfSize],
-                      [patch.lat + halfSize, patch.lng + halfSize]
-                    ];
-                    return (
-                        <Rectangle
-                            key={`ndvi-patch-${farm.id}-${idx}`}
-                            bounds={bounds}
-                            pathOptions={{ color: 'transparent', fillColor: patch.color, fillOpacity: 0.4, weight: 0 }}
-                        >
-                            <Tooltip direction="top" offset={[0, -10]}>
-                                <div className="text-xs text-center">
-                                    <span className="font-bold" style={{ color: patch.color }}>
-                                        NDVI: {patch.value.toFixed(4)}
-                                    </span>
-                                    <br/>
-                                    {patch.status}
-                                </div>
-                            </Tooltip>
-                        </Rectangle>
-                    )
-                  })}
-
-                  {/* Render True Database Problem Pixels (Pixel-wise) */}
-                  {hotspots
-                    .filter((spot: any) => isPointInPolygon({lat: spot.lat, lng: spot.lng}, farm.polygon_coordinates))
-                    .map((spot, idx) => {
-                    const halfSize = 0.000045; // Roughly 5x5m rectangle for a 10m pixel
-                    const bounds: [[number, number], [number, number]] = [
-                      [spot.lat - halfSize, spot.lng - halfSize],
-                      [spot.lat + halfSize, spot.lng + halfSize]
-                    ];
-                    
-                    return (
-                      <Rectangle 
-                        key={`hotspot-${farm.id}-${spot.id}`}
-                        bounds={bounds}
-                        pathOptions={{ 
-                          color: spot.color, 
-                          fillColor: spot.color, 
-                          fillOpacity: 0.6, 
-                          weight: 1,
-                          dashArray: '2, 2'
-                        }}
-                        className="animate-pulse"
-                      >
-                        <Popup>
-                          <div className="p-1 min-w-[150px] dark:bg-gray-800 dark:text-white">
-                            <h4 className="font-bold text-gray-900 dark:text-white mb-1">{spot.name}</h4>
-                            <p className="text-sm font-semibold" style={{ color: spot.color }}>
-                              {spot.category} (NDVI: {spot.ndvi.toFixed(2)})
-                            </p>
-                            <div className="mt-2">
-                              <p className="text-xs font-semibold text-gray-600 dark:text-gray-400 border-b dark:border-gray-700 pb-1 mb-1">{t('scanHistoryTracker')}</p>
-                              <div className="max-h-[100px] overflow-y-auto space-y-1">
-                                {spot.history.slice().reverse().map((h: any, i: number) => (
-                                  <div key={i} className="flex justify-between text-xs">
-                                    <span className="text-gray-500 dark:text-gray-400">{t('scanWord')} {spot.history.length - i}</span>
-                                    <span className="font-mono font-medium" style={{ color: h.ndvi_value < 0.3 ? '#ef4444' : (h.ndvi_value > 0.6 ? '#2ecc71' : '#f59e0b') }}>
-                                      {h.ndvi_value.toFixed(2)}
-                                    </span>
-                                  </div>
-                                ))}
-                              </div>
-                            </div>
-                          </div>
-                        </Popup>
-                        <Tooltip direction="top" offset={[0, -10]}>
-                          <div className="text-xs text-center">
-                            <span className="font-bold" style={{ color: spot.color }}>
-                              {spot.name}
-                            </span>
-                            <br/>
-                            NDVI: {spot.ndvi.toFixed(2)}
-                          </div>
-                        </Tooltip>
-                      </Rectangle>
-                    );
-                  })}
-                </React.Fragment>
+                <FarmOverlay
+                  key={farm.id}
+                  farm={farm}
+                  visibleOverlay={!!visibleOverlays[farm.id]}
+                  problemHotspots={problemHotspots}
+                  openCloudWarning={openCloudWarning}
+                  t={t}
+                />
               );
             })}
           </MapContainer>
@@ -691,108 +976,17 @@ export function SatelliteMonitoringView() {
                       </td>
                     </tr>
                   )}
-                  {farms.map((farm) => {
-                    const latestScan = farm.scans && farm.scans.length > 0 ? farm.scans[0] : null;
-                    const isStressed = latestScan?.status === 'alert' || latestScan?.status === 'stressed';
-                    const statusColor = isStressed ? 'text-red-600 bg-red-50' : (latestScan?.status === 'moderate' ? 'text-orange-600 bg-orange-50' : 'text-green-600 bg-green-50');
-                    const patches = farm.patches || [];
-                    
-                    return (
-                      <tr key={`table-${farm.id}`} className="hover:bg-muted/50 dark:hover:bg-gray-900/50 transition-colors">
-                        <td className="px-4 py-4 font-medium text-gray-900 dark:text-white">
-                          {farm.name}
-                        </td>
-                        <td className="px-4 py-4">
-                          {latestScan ? (
-                            <span className={`px-2.5 py-1 rounded-full text-xs font-semibold ${isStressed ? 'text-red-600 bg-red-50 dark:bg-red-900/20' : (latestScan?.status === 'moderate' ? 'text-orange-600 bg-orange-50 dark:bg-orange-900/20' : 'text-green-600 bg-green-50 dark:bg-green-900/20')}`}>
-                              {latestScan.status.toUpperCase()}
-                            </span>
-                          ) : <span className="text-gray-400 dark:text-gray-500">-</span>}
-                        </td>
-                        <td className="px-4 py-4 font-mono font-medium text-gray-700 dark:text-gray-300">
-                          {latestScan ? latestScan.ndvi_value.toFixed(2) : '-'}
-                        </td>
-                        <td className="px-4 py-4 text-gray-600 dark:text-gray-400">
-                          {patches.length > 0 ? (
-                            <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 font-bold text-xs">
-                              {patches.length}
-                            </span>
-                          ) : (
-                            <span className="text-gray-400 dark:text-gray-500">{t('noneLabel')}</span>
-                          )}
-                        </td>
-                        <td className="px-4 py-4">
-                          {patches.length > 0 ? (
-                            <div className="flex flex-col gap-2 max-h-[120px] overflow-y-auto pr-2 custom-scrollbar">
-                              {(() => {
-                                // Sort patches by worst (lowest) NDVI on their most recent scan
-                                const sortedPatches = [...patches].sort((a, b) => {
-                                  const aLast = a.scans && a.scans.length > 0 ? a.scans[a.scans.length - 1].ndvi_value : 1;
-                                  const bLast = b.scans && b.scans.length > 0 ? b.scans[b.scans.length - 1].ndvi_value : 1;
-                                  return aLast - bLast;
-                                });
-                                
-                                return sortedPatches.map((patch: any) => {
-                                  const history = patch.scans || [];
-                                  const recent = history.slice(-5);
-                                  return (
-                                    <div key={`patch-hist-${patch.id}`} className="flex items-center gap-2 text-xs">
-                                      <span className="font-semibold text-gray-700 dark:text-gray-200 w-16 shrink-0 truncate" title={patch.name}>{patch.name}:</span>
-                                      <div className="flex items-center gap-1">
-                                        {recent.map((h: any, i: number) => {
-                                          const hColor = h.ndvi_value < 0.4 ? 'text-red-600' : (h.ndvi_value < 0.6 ? 'text-orange-500' : 'text-green-600');
-                                          return (
-                                            <React.Fragment key={i}>
-                                              <span className={`font-mono ${hColor}`}>{h.ndvi_value.toFixed(2)}</span>
-                                              {i < recent.length - 1 && <span className="text-gray-300">→</span>}
-                                            </React.Fragment>
-                                          );
-                                        })}
-                                      </div>
-                                    </div>
-                                  );
-                                });
-                              })()}
-                            </div>
-                          ) : (
-                            <span className="text-gray-400 text-xs">{t('noPatchesTracked')}</span>
-                          )}
-                        </td>
-                        <td className="px-4 py-4 text-xs text-gray-500 dark:text-gray-400">
-                          {latestScan ? new Date(latestScan.scan_date).toLocaleDateString() : t('neverLabel')}
-                        </td>
-                        <td className="px-4 py-4">
-                          <div className="flex items-center justify-end gap-3">
-                            {scanningFarmId === farm.id && (
-                              <div className="flex items-center text-blue-600 text-xs font-mono animate-pulse">
-                                <Satellite className="w-4 h-4 mr-1.5" />
-                                {t('uplinkActive')}
-                              </div>
-                            )}
-                             <Button 
-                              variant="outline" 
-                              size="sm"
-                              className="text-indigo-600 border-indigo-200 hover:bg-indigo-50 dark:text-indigo-400 dark:border-indigo-800 dark:hover:bg-indigo-900/30"
-                              onClick={() => openImageViewer(farm)}
-                              title={t('viewSatelliteImage') || "View Satellite Image"}
-                             >
-                               <Layers className="w-4 h-4" />
-                             </Button>
-                             <Button 
-                              variant="outline" 
-                              size="sm" 
-                              disabled={scanningFarmId !== null}
-                              onClick={() => handleRescan(farm.id)}
-                              className="text-blue-600 dark:text-blue-400 border-blue-200 dark:border-blue-900 hover:bg-blue-50 dark:hover:bg-blue-900/30"
-                            >
-                              {scanningFarmId === farm.id ? <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" /> : <Satellite className="w-3.5 h-3.5 mr-1.5" />}
-                              {scanningFarmId === farm.id ? t('scanningButton') : t('rescanButton')}
-                            </Button>
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })}
+                  {farms.map((farm) => (
+                    <FarmTableRow
+                      key={`table-${farm.id}`}
+                      farm={farm}
+                      scanningFarmId={scanningFarmId}
+                      openCloudWarning={openCloudWarning}
+                      openImageViewer={openImageViewer}
+                      handleRescan={handleRescan}
+                      t={t}
+                    />
+                  ))}
                 </tbody>
               </table>
             </div>
@@ -873,6 +1067,12 @@ export function SatelliteMonitoringView() {
                     <span className="text-xs font-semibold text-gray-700 dark:text-gray-300 bg-gray-200 dark:bg-gray-800 px-2 py-1 rounded-md">
                       Max NDVI: {farmImages[imageViewerFarm.id].max_ndvi.toFixed(4)}
                     </span>
+                    {(farmImages[imageViewerFarm.id]?.is_cloudy || (farmImages[imageViewerFarm.id]?.cloud_coverage_percentage && farmImages[imageViewerFarm.id].cloud_coverage_percentage >= 20)) && (
+                      <span className="text-xs font-semibold text-amber-800 dark:text-amber-300 bg-amber-100 dark:bg-amber-900/40 px-2 py-1 rounded-md border border-amber-300 dark:border-amber-700/50 flex items-center gap-1">
+                        <Cloud className="w-3.5 h-3.5" />
+                        {farmImages[imageViewerFarm.id].cloud_coverage_percentage}% {t('cloudCoverLabel')}
+                      </span>
+                    )}
                   </div>
                 )}
               </div>
@@ -880,6 +1080,18 @@ export function SatelliteMonitoringView() {
                 <X className="w-5 h-5 text-gray-600 dark:text-gray-300" />
               </button>
             </div>
+
+            {/* Cloud Warning Alert Banner in Image Viewer */}
+            {(farmImages[imageViewerFarm.id]?.is_cloudy || (farmImages[imageViewerFarm.id]?.cloud_coverage_percentage && farmImages[imageViewerFarm.id].cloud_coverage_percentage >= 20)) && (
+              <div className="bg-amber-500/15 dark:bg-amber-900/40 border-b border-amber-200 dark:border-amber-800/60 px-4 py-2.5 flex items-center justify-between text-xs text-amber-900 dark:text-amber-200">
+                <div className="flex items-center gap-2">
+                  <CloudRain className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0 animate-pulse" />
+                  <span>
+                    <strong>{t('cloudWarningTitle')}:</strong> {farmImages[imageViewerFarm.id]?.cloud_coverage_percentage}% {t('cloudCoverLabel').toLowerCase()}. Dense clouds or cloud shadows may obscure vegetation and decrease spectral clarity.
+                  </span>
+                </div>
+              </div>
+            )}
 
             <div className="p-6 bg-gray-50 dark:bg-gray-950 flex flex-col items-center justify-center flex-grow overflow-hidden">
               {loadingImage ? (
@@ -908,6 +1120,109 @@ export function SatelliteMonitoringView() {
                   <p className="text-xs mt-1 opacity-70">{farmImages[imageViewerFarm.id]?.image_error || 'No image data available.'}</p>
                 </div>
               )}
+            </div>
+            
+          </div>
+        </div>
+      )}
+
+      {/* Cloud Warning Popup Modal */}
+      {cloudWarningModal && cloudWarningModal.isOpen && (
+        <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-black/75 backdrop-blur-md animate-in fade-in duration-300 p-4">
+          <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden animate-in zoom-in-95 duration-300 border border-amber-200 dark:border-amber-900/50 relative flex flex-col">
+            
+            {/* Atmospheric Cloud Radar Banner Header */}
+            <div className="h-44 bg-gradient-to-br from-slate-900 via-sky-950 to-slate-900 relative overflow-hidden flex items-center justify-center">
+              {/* Radar rings */}
+              <div className="absolute inset-0 border-[40px] border-amber-400/10 rounded-full scale-150 animate-[ping_4s_linear_infinite]" />
+              <div className="absolute inset-0 border-[20px] border-sky-400/20 rounded-full scale-110 animate-[ping_3s_linear_infinite]" />
+              
+              <div className="relative z-10 flex flex-col items-center">
+                <div className="p-4 bg-amber-500/20 dark:bg-amber-500/30 rounded-full border border-amber-400/40 backdrop-blur-sm shadow-inner mb-2">
+                  <CloudRain className="w-12 h-12 text-amber-400 animate-bounce" />
+                </div>
+                <div className="flex items-center gap-1.5 px-3 py-1 bg-amber-500/20 border border-amber-400/40 rounded-full text-amber-300 text-xs font-semibold tracking-wide uppercase">
+                  <AlertTriangle className="w-3.5 h-3.5" />
+                  {t('cloudNoticeModalTitle') || 'Satellite Cloud Advisory'}
+                </div>
+              </div>
+
+              <button 
+                onClick={() => setCloudWarningModal(null)} 
+                className="absolute top-3 right-3 p-1.5 bg-black/40 hover:bg-black/60 rounded-full text-gray-300 hover:text-white transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-6">
+              <div className="text-center mb-5">
+                <h3 className="text-xl font-bold text-gray-900 dark:text-white flex items-center justify-center gap-2">
+                  {t('cloudWarningTitle')}
+                </h3>
+                <p className="text-xs text-amber-600 dark:text-amber-400 font-medium mt-1">
+                  {t('cloudWarningSub')}
+                </p>
+              </div>
+
+              {/* Cloud Cover Metric Card */}
+              <div className="bg-amber-50/80 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/60 rounded-xl p-4 mb-4">
+                <div className="flex justify-between items-center mb-2 pb-2 border-b border-amber-200/60 dark:border-amber-800/40 text-xs">
+                  <span className="text-gray-600 dark:text-gray-400 font-medium">{t('farmNamePlaceholder')}:</span>
+                  <span className="font-bold text-gray-900 dark:text-white">{cloudWarningModal.farmName}</span>
+                </div>
+                <div className="flex justify-between items-center mb-2 pb-2 border-b border-amber-200/60 dark:border-amber-800/40 text-xs">
+                  <span className="text-gray-600 dark:text-gray-400 font-medium">{t('cloudCoverLabel')}:</span>
+                  <span className="font-extrabold text-amber-700 dark:text-amber-400 text-sm flex items-center gap-1.5">
+                    <Cloud className="w-4 h-4" /> {cloudWarningModal.cloudCover}%
+                  </span>
+                </div>
+                {cloudWarningModal.scanDate && (
+                  <div className="flex justify-between items-center text-xs">
+                    <span className="text-gray-600 dark:text-gray-400 font-medium">{t('scannedLabel')}:</span>
+                    <span className="text-gray-700 dark:text-gray-300 font-mono">
+                      {new Date(cloudWarningModal.scanDate).toLocaleString()}
+                    </span>
+                  </div>
+                )}
+              </div>
+
+              {/* Explanation & Advisory */}
+              <div className="space-y-2.5 mb-6 text-xs leading-relaxed text-gray-600 dark:text-gray-300">
+                <p>
+                  {cloudWarningModal.warning || t('cloudWarningDesc')}
+                </p>
+                <div className="p-3 bg-blue-50 dark:bg-blue-950/30 border border-blue-100 dark:border-blue-900/50 rounded-lg flex items-start gap-2 text-blue-900 dark:text-blue-200">
+                  <Info className="w-4 h-4 text-blue-500 shrink-0 mt-0.5" />
+                  <span>{t('cloudWarningAdvice')}</span>
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex flex-col sm:flex-row gap-3">
+                <Button 
+                  className="flex-1 bg-[#2ecc71] hover:bg-[#27ae60] text-white font-medium shadow-sm"
+                  onClick={() => setCloudWarningModal(null)}
+                >
+                  <Check className="w-4 h-4 mr-2" />
+                  {t('viewResultsAnyway')}
+                </Button>
+                {cloudWarningModal.farm && (
+                  <Button 
+                    variant="outline" 
+                    className="border-indigo-200 text-indigo-700 hover:bg-indigo-50 dark:border-indigo-800 dark:text-indigo-300 dark:hover:bg-indigo-900/30"
+                    onClick={() => {
+                      const farm = cloudWarningModal.farm;
+                      setCloudWarningModal(null);
+                      openImageViewer(farm);
+                    }}
+                  >
+                    <Eye className="w-4 h-4 mr-1.5" />
+                    {t('viewSatelliteImage') || "View Satellite Image"}
+                  </Button>
+                )}
+              </div>
             </div>
             
           </div>

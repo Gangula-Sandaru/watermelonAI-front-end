@@ -19,6 +19,7 @@ import { EscalationModule } from './components/EscalationModule';
 import { CommunicationModule } from './components/CommunicationModule';
 import { OfficerEscalationTable } from './components/OfficerEscalationTable';
 import { AITrainingCenter } from './components/AITrainingCenter';
+import { SatelliteInsightsPanel } from './components/SatelliteInsightsPanel';
 import { toast } from 'sonner';
 import { useTranslation } from './utils/translations';
 
@@ -91,13 +92,13 @@ export default function App() {
             } else if (isOfficerUser) {
               allowedSections = ['dashboard', 'communications', 'expert-review', 'data', 'settings'];
             } else if (isResearcherUser) {
-              allowedSections = ['satellite', 'ai-training', 'data', 'settings'];
+              allowedSections = ['dashboard', 'ai-training', 'data', 'settings', 'satellite-insights'];
             } else { // Farmer
               allowedSections = ['dashboard', 'satellite', 'diagnosis', 'communications', 'escalate', 'data', 'settings'];
             }
 
             if (!allowedSections.includes(activeSection)) {
-               setActiveSection(isAdminUser ? 'ai-training' : (isResearcherUser ? 'satellite' : 'dashboard'));
+               setActiveSection(isAdminUser ? 'ai-training' : 'dashboard');
             } else if (isAdminUser && activeSection === 'dashboard') {
                setActiveSection('ai-training');
             }
@@ -136,7 +137,7 @@ export default function App() {
 
   const getInitialSection = () => {
     const path = window.location.pathname;
-    const validSections = ['dashboard', 'satellite', 'diagnosis', 'data', 'communications', 'expert-review', 'ai-training', 'escalate', 'settings'];
+    const validSections = ['dashboard', 'satellite', 'diagnosis', 'data', 'communications', 'expert-review', 'ai-training', 'escalate', 'settings', 'satellite-insights'];
     const section = path.substring(1);
     if (validSections.includes(section)) return section;
     return 'dashboard';
@@ -249,7 +250,7 @@ export default function App() {
         else setAuthMode('landing');
       } else {
         const section = path.substring(1);
-        if (['dashboard', 'satellite', 'diagnosis', 'data', 'communications', 'expert-review', 'ai-training', 'escalate', 'settings'].includes(section)) {
+        if (['dashboard', 'satellite', 'diagnosis', 'data', 'communications', 'expert-review', 'ai-training', 'escalate', 'settings', 'satellite-insights'].includes(section)) {
           setActiveSection(section);
         } else {
           setActiveSection('dashboard');
@@ -353,23 +354,25 @@ export default function App() {
             <div className="flex items-center justify-between">
               <div>
                 <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
-                  {activeSection === 'dashboard' && (userData?.role?.toLowerCase()?.includes('officer') ? 'Officer Dashboard' : isAdmin ? 'Admin Dashboard' : t('dashboard'))}
+                  {activeSection === 'dashboard' && (userData?.role?.toLowerCase()?.includes('officer') ? 'Officer Dashboard' : isAdmin ? 'Admin Dashboard' : userData?.role?.toLowerCase() === 'researcher' ? 'Researcher Dashboard' : t('dashboard'))}
                   {activeSection === 'satellite' && t('satellite')}
                   {activeSection === 'diagnosis' && t('diagnosis')}
                   {activeSection === 'data' && t('data')}
                   {activeSection === 'communications' && t('communications')}
                   {activeSection === 'expert-review' && t('expertReview')}
                   {activeSection === 'ai-training' && !userData?.role?.toLowerCase()?.includes('officer') && t('aiTraining')}
+                  {activeSection === 'satellite-insights' && 'Satellite Data Insights'}
                   {activeSection === 'settings' && t('systemSettings')}
                 </h2>
                 <p className="text-sm text-gray-500">
-                  {activeSection === 'dashboard' && (userData?.role?.toLowerCase()?.includes('officer') ? 'නිලධාරි උපකරණ පුවරුව' : isAdmin ? 'පරිපාලක උපකරණ පුවරුව' : t('dashboardSubtitle'))}
+                  {activeSection === 'dashboard' && (userData?.role?.toLowerCase()?.includes('officer') ? 'නිලධාරි උපකරණ පුවරුව' : isAdmin ? 'පරිපාලක උපකරණ පුවරුව' : userData?.role?.toLowerCase() === 'researcher' ? 'Research analytics & pathogen tracking overview' : t('dashboardSubtitle'))}
                   {activeSection === 'satellite' && t('satelliteSubtitle')}
                   {activeSection === 'diagnosis' && t('diagnosisSubtitle')}
                   {activeSection === 'data' && t('dataSubtitle')}
                   {activeSection === 'communications' && t('communicationsSubtitle')}
                   {activeSection === 'expert-review' && t('expertReviewSubtitle')}
                   {activeSection === 'ai-training' && !userData?.role?.toLowerCase()?.includes('officer') && t('aiTrainingSubtitle')}
+                  {activeSection === 'satellite-insights' && 'NDVI farm health overview & AI training data export'}
                   {activeSection === 'settings' && t('settingsSubtitle')}
                 </p>
               </div>
@@ -469,6 +472,10 @@ export default function App() {
 
           {activeSection === 'ai-training' && !userData?.role?.toLowerCase()?.includes('officer') && (
             <AITrainingCenter />
+          )}
+
+          {activeSection === 'satellite-insights' && (
+            <SatelliteInsightsPanel />
           )}
 
           {activeSection === 'settings' && (
