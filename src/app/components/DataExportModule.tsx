@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Card } from './ui/card';
 import { Button } from './ui/button';
-import { Download, FileText, Calendar, Filter, Database, FileSpreadsheet, CheckCircle2, Loader2, History, Trash2, RefreshCw, XCircle } from 'lucide-react';
+import { Download, FileText, Calendar, Filter, Database, FileSpreadsheet, CheckCircle2, Loader2, History, Trash2, RefreshCw, XCircle, AlertTriangle } from 'lucide-react';
 import { useTranslation } from '../utils/translations';
 
 export const DataExportModule = ({ userData }: { userData: any }) => {
@@ -13,7 +13,7 @@ export const DataExportModule = ({ userData }: { userData: any }) => {
   const [selectedFormat, setSelectedFormat] = useState<'csv' | 'pdf' | 'excel'>('csv');
   const [trendsFormat, setTrendsFormat] = useState<'csv' | 'pdf' | 'excel'>('pdf');
   const [selectedDataTypes, setSelectedDataTypes] = useState<string[]>(['all']);
-  const [dateRange, setDateRange] = useState<'7days' | '30days' | 'thisYear' | 'custom'>('30days');
+  const [dateRange, setDateRange] = useState<'7days' | '30days' | 'thisYear' | 'lifetime'>('30days');
   const [isExporting, setIsExporting] = useState(false);
   const [exportSuccess, setExportSuccess] = useState(false);
   const [exportHistory, setExportHistory] = useState<any[]>([]);
@@ -108,6 +108,14 @@ export const DataExportModule = ({ userData }: { userData: any }) => {
   }, [exportHistory, currentPage, itemsPerPage]);
 
   const handleExport = async () => {
+    // Client-side daily download limit check for restricted researchers
+    if (userData?.is_restricted && (userData?.daily_remaining_downloads ?? 1) <= 0) {
+      toast.error(
+        `Daily download limit reached (${userData?.daily_download_count ?? 3}/${userData?.daily_download_limit ?? 3} downloads used today). Your account is restricted to 3 data exports per day.`,
+        { duration: 5000 }
+      );
+      return;
+    }
     setIsExporting(true);
     setExportSuccess(false);
     try {
@@ -129,6 +137,12 @@ export const DataExportModule = ({ userData }: { userData: any }) => {
         await fetchHistory();
         startPolling();           // poll until PROCESSING → COMPLETED
         setTimeout(() => setExportSuccess(false), 3000);
+      } else if (response.status === 403) {
+        const errorData = await response.json();
+        toast.error(
+          errorData?.error || `Daily download limit reached. You have used your 3 allowed data exports for today.`,
+          { duration: 6000 }
+        );
       }
     } catch (err) {
       console.error('Export failed', err);
@@ -158,24 +172,21 @@ export const DataExportModule = ({ userData }: { userData: any }) => {
       return [
         { id: 'escalations', label: t('officerActions') },
         { id: 'reviews', label: t('expertReview') },
-        { id: 'regional', label: t('regionalAnalytics') },
-        { id: 'disease', label: t('diseaseDetections') }
+        { id: 'regional', label: t('regionalAnalytics') }
       ];
     }
     if (isResearcher) {
       return [
         { id: 'global', label: t('allFarmData') },
         { id: 'anonymized', label: t('anonymizedScans') },
-        { id: 'outbreaks', label: t('outbreakHistory') },
-        { id: 'trends', label: t('migrationTrends') }
+        { id: 'outbreaks', label: t('outbreakHistory') }
       ];
     }
     // Farmer
     return [
       { id: 'all', label: t('allFarmData') },
       { id: 'disease', label: t('diseaseDetections') },
-      { id: 'satellite', label: t('satelliteScans') },
-      { id: 'yield', label: t('yieldPredictions') }
+      { id: 'satellite', label: t('satelliteScans') }
     ];
   };
 
@@ -189,8 +200,45 @@ export const DataExportModule = ({ userData }: { userData: any }) => {
     }
   }, [role]);
 
+  const isDownloadLimitReached = userData?.is_restricted && (userData?.daily_remaining_downloads ?? 1) <= 0;
+
   return (
-    <Card className="p-6">
+    <>
+      {/* Restriction Banner for Restricted Researchers */}
+      {userData?.is_restricted && isResearcher && (
+        <div className="mb-4 p-4 rounded-xl border border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-900/20 flex items-start gap-3">
+          <AlertTriangle className="w-5 h-5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+          <div className="flex-1">
+            <p className="text-sm font-bold text-amber-800 dark:text-amber-300">
+              Account Restricted — Daily Download Limit Active
+            </p>
+            <p className="text-xs text-amber-700 dark:text-amber-400 mt-0.5">
+              Today's Downloads:{' '}
+              <strong>{userData?.daily_download_count ?? 0} / {userData?.daily_download_limit ?? 3}</strong>
+              {' '}({userData?.daily_remaining_downloads ?? 0} remaining today)
+              {isDownloadLimitReached && (
+                <span className="ml-2 font-bold text-red-600 dark:text-red-400">
+                  — Daily limit reached. Downloads resume tomorrow.
+                </span>
+              )}
+            </p>
+            {userData?.restriction_reason && (
+              <p className="text-xs text-amber-600 dark:text-amber-500 mt-1 italic">
+                Reason: {userData.restriction_reason}
+              </p>
+            )}
+          </div>
+          <span className={`shrink-0 px-2 py-1 rounded-full text-[10px] font-black uppercase tracking-wider ${
+            isDownloadLimitReached
+              ? 'bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-400'
+              : 'bg-amber-100 dark:bg-amber-900/40 text-amber-800 dark:text-amber-400'
+          }`}>
+            {userData?.daily_download_count ?? 0}/{userData?.daily_download_limit ?? 3} Today
+          </span>
+        </div>
+      )}
+
+      <Card className="p-6">
       <div className="flex items-center justify-between mb-6">
         <div>
           <h3 className="font-semibold text-gray-900 dark:text-white">
@@ -418,7 +466,7 @@ export const DataExportModule = ({ userData }: { userData: any }) => {
                 { id: '7days', label: t('last7Days') },
                 { id: '30days', label: t('last30Days') },
                 { id: 'thisYear', label: t('thisYear') },
-                { id: 'custom', label: t('customRange') }
+                { id: 'lifetime', label: t('lifetime') || 'Lifetime' }
               ].map((range) => (
                 <button
                   key={range.id}
@@ -464,8 +512,12 @@ export const DataExportModule = ({ userData }: { userData: any }) => {
 
           <Button
             onClick={handleExport}
-            disabled={isExporting}
-            className="w-full bg-[#2E7D32] hover:bg-[#1B5E20] text-white font-bold py-6 rounded-lg transition-all"
+            disabled={isExporting || isDownloadLimitReached}
+            className={`w-full font-bold py-6 rounded-lg transition-all ${
+              isDownloadLimitReached
+                ? 'bg-gray-400 dark:bg-gray-600 text-white cursor-not-allowed'
+                : 'bg-[#2E7D32] hover:bg-[#1B5E20] text-white'
+            }`}
           >
             {isExporting ? (
               <span className="flex items-center gap-2">
@@ -474,6 +526,11 @@ export const DataExportModule = ({ userData }: { userData: any }) => {
             ) : exportSuccess ? (
               <span className="flex items-center gap-2">
                 <CheckCircle2 className="w-5 h-5" /> {t('exportSuccessLabel')}
+              </span>
+            ) : isDownloadLimitReached ? (
+              <span className="flex items-center gap-2">
+                <AlertTriangle className="w-5 h-5" />
+                Daily Download Limit Reached ({userData?.daily_download_count ?? 3}/{userData?.daily_download_limit ?? 3} Used Today)
               </span>
             ) : (
               t('generateExportFile')
@@ -643,5 +700,6 @@ export const DataExportModule = ({ userData }: { userData: any }) => {
         </div>
       </div>
     </Card>
+    </>
   );
 };

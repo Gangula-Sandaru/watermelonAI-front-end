@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Card } from './ui/card';
 import { Button } from './ui/button';
-import { MessageSquare, Users, UserCog, Search, Send, FileText, CheckCircle2, Clock, Filter, Phone, Mail, Bell, AlertTriangle, Check, CheckCheck, X, Trash2, Edit3 } from 'lucide-react';
+import { MessageSquare, Users, UserCog, Search, Send, FileText, CheckCircle2, Clock, Filter, Phone, Mail, Bell, AlertTriangle, Check, CheckCheck, X, Trash2, Edit3, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useTranslation } from '../utils/translations';
 
@@ -50,6 +50,10 @@ export const CommunicationModule = ({ userData }: CommunicationModuleProps) => {
   const [newMessage, setNewMessage] = useState('');
   const [isBroadcasting, setIsBroadcasting] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [chatLoading, setChatLoading] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const [contacts, setContacts] = useState<any[]>([]);
   const [messages, setMessages] = useState<any[]>([]);
@@ -65,6 +69,61 @@ export const CommunicationModule = ({ userData }: CommunicationModuleProps) => {
   const broadcastsLenRef = useRef(0);
   const [unreadBroadcasts, setUnreadBroadcasts] = useState(0);
   const activeTabRef = useRef(activeTab);
+
+  // Set of read message identifiers: { [escKey]: last_msg_id or lastMsg text }
+  const [readMap, setReadMap] = useState<Record<string, string | number>>(() => {
+    try {
+      const saved = localStorage.getItem('watermelon_chat_read_ids');
+      return saved ? JSON.parse(saved) : {};
+    } catch (e) {
+      return {};
+    }
+  });
+
+  const markContactAsRead = (contact: any) => {
+    if (!contact) return;
+    const escKey = contact.esc_id?.toString() || contact.id?.toString();
+    if (!escKey) return;
+    const msgIdentifier = contact.last_msg_id ?? contact.lastMsg ?? 'read';
+    
+    setReadMap(prev => {
+      const updated = { ...prev, [escKey]: msgIdentifier };
+      try {
+        localStorage.setItem('watermelon_chat_read_ids', JSON.stringify(updated));
+      } catch (e) {}
+      return updated;
+    });
+  };
+
+  const isContactUnread = (contact: any) => {
+    if (!contact) return false;
+    const escKey = contact.esc_id?.toString() || contact.id?.toString();
+    if (!escKey) return false;
+    
+    // If contact is currently open and active in view, consider it read
+    if (selectedContact && (selectedContact.esc_id?.toString() === escKey || selectedContact.id?.toString() === escKey)) {
+      return false;
+    }
+
+    // If there is no message, it's not unread
+    if (!contact.lastMsg || contact.lastMsg === 'No active cases') {
+      return false;
+    }
+
+    const currentMsgId = contact.last_msg_id ?? contact.lastMsg;
+    const readMsgId = readMap[escKey];
+
+    // If incoming message from other party that has not been opened yet
+    if (contact.is_incoming) {
+      return readMsgId !== currentMsgId;
+    }
+
+    if (contact.unread > 0) {
+      return readMsgId !== currentMsgId;
+    }
+
+    return false;
+  };
 
   useEffect(() => {
     activeTabRef.current = activeTab;
@@ -109,7 +168,6 @@ export const CommunicationModule = ({ userData }: CommunicationModuleProps) => {
         
         if (broadcastsLenRef.current > 0 && data.length > broadcastsLenRef.current) {
           if (!isOfficer && !isResearcher) {
-
             if (activeTabRef.current !== 'broadcasts') {
               setUnreadBroadcasts(prev => prev + (data.length - broadcastsLenRef.current));
             }
@@ -131,7 +189,7 @@ export const CommunicationModule = ({ userData }: CommunicationModuleProps) => {
 
   useEffect(() => {
     fetchBroadcasts();
-    const interval = setInterval(() => fetchBroadcasts(), 10000); // Polling every 10 seconds for broadcasts
+    const interval = setInterval(() => fetchBroadcasts(), 10000);
     return () => clearInterval(interval);
   }, []);
 
@@ -206,8 +264,6 @@ export const CommunicationModule = ({ userData }: CommunicationModuleProps) => {
     }
   };
 
-
-
   const fetchContacts = async () => {
     setLoading(true);
     try {
@@ -224,7 +280,7 @@ export const CommunicationModule = ({ userData }: CommunicationModuleProps) => {
         if (pendingId) {
           const contact = fetchedContacts.find((c: any) => c.esc_id?.toString() === pendingId);
           if (contact) {
-            setSelectedContact(contact);
+            handleSelectContact(contact);
             localStorage.removeItem('pending_chat_esc_id');
           }
         }
@@ -236,15 +292,35 @@ export const CommunicationModule = ({ userData }: CommunicationModuleProps) => {
     }
   };
 
+  // Background polling for new messages across all contacts in active tab
+  useEffect(() => {
+    if (activeTab === 'broadcasts') return;
+    const interval = setInterval(async () => {
+      try {
+        const token = localStorage.getItem('access_token') || localStorage.getItem('token');
+        const response = await fetch(`http://127.0.0.1:8000/api/escalation/contacts/?type=${activeTab}`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (response.ok) {
+          const fetchedContacts = await response.json();
+          setContacts(fetchedContacts);
+        }
+      } catch (e) {}
+    }, 4000);
+    return () => clearInterval(interval);
+  }, [activeTab, selectedContact?.esc_id, selectedContact?.id]);
+
   useEffect(() => {
     setSelectedContact(null);
+    setMessages([]);
+    setSearchQuery('');
     if (activeTab !== 'broadcasts') {
       fetchContacts();
     }
   }, [activeTab]);
 
   const fetchMessages = async (contact: any) => {
-    if (!contact.esc_id) {
+    if (!contact || !contact.esc_id) {
       setMessages([]);
       return;
     }
@@ -274,38 +350,80 @@ export const CommunicationModule = ({ userData }: CommunicationModuleProps) => {
           return { ...msg, status };
         });
         setMessages(mapped);
+
+        // Mark as read in readMap
+        markContactAsRead(contact);
+
+        // Update contact lastMsg preview and time in contacts sidebar
+        if (fetchedMessages.length > 0) {
+          const last = fetchedMessages[fetchedMessages.length - 1];
+          const previewText = last.text.length > 30 ? last.text.substring(0, 30) + '...' : last.text;
+          const previewTime = last.time || (last.created_at ? new Date(last.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Active');
+
+          setContacts(prev => prev.map(c => 
+            (c.esc_id === contact.esc_id || (contact.id && c.id === contact.id))
+              ? { ...c, lastMsg: previewText, time: previewTime, last_msg_id: last.id }
+              : c
+          ));
+        }
       }
     } catch (err) {
       console.error("Failed to fetch messages", err);
     }
   };
 
+  const handleSelectContact = (contact: any) => {
+    setSelectedContact(contact);
+    messagesLenRef.current = 0;
+
+    // Immediately mark as read -> Bell icon disappears!
+    markContactAsRead(contact);
+
+    if (contact && !contact.isBroadcast) {
+      setChatLoading(true);
+      fetchMessages(contact).finally(() => setChatLoading(false));
+    }
+  };
+
   useEffect(() => {
-    if (selectedContact) {
-      messagesLenRef.current = 0;
-      fetchMessages(selectedContact);
-      const interval = setInterval(() => fetchMessages(selectedContact), 5000);
+    if (selectedContact && !selectedContact.isBroadcast && selectedContact.esc_id) {
+      const interval = setInterval(() => fetchMessages(selectedContact), 4000);
       return () => clearInterval(interval);
     }
-  }, [selectedContact]);
+  }, [selectedContact?.esc_id, selectedContact?.id]);
 
   const handleSendMessage = async () => {
     if (!newMessage.trim() || !selectedContact?.esc_id) return;
     
     playSendSound();
     
+    const originalText = newMessage.trim();
+    const formattedTime = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     const tempId = Date.now();
+    const mySenderType = isOfficer ? 'officer' : (isResearcher ? 'researcher' : 'farmer');
+
     const tempMsg = {
       id: tempId,
-      sender_type: isOfficer ? 'officer' : 'farmer',
-      text: newMessage,
-      time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      sender_type: mySenderType,
+      text: originalText,
+      time: formattedTime,
       status: 'sending'
     };
     
     setMessages(prev => [...prev, tempMsg]);
-    const originalText = newMessage;
     setNewMessage('');
+    
+    // Update contact preview immediately in sidebar
+    const previewText = originalText.length > 30 ? originalText.substring(0, 30) + '...' : originalText;
+    
+    markContactAsRead({ ...selectedContact, lastMsg: previewText, last_msg_id: tempId });
+
+    setContacts(prev => prev.map(c => 
+      (c.esc_id === selectedContact.esc_id || (selectedContact.id && c.id === selectedContact.id))
+        ? { ...c, lastMsg: previewText, time: formattedTime, last_msg_id: tempId, is_incoming: false }
+        : c
+    ));
+    setSelectedContact((prev: any) => prev ? { ...prev, lastMsg: previewText, time: formattedTime, last_msg_id: tempId, is_incoming: false } : prev);
     
     try {
       const token = localStorage.getItem('access_token') || localStorage.getItem('token');
@@ -323,13 +441,23 @@ export const CommunicationModule = ({ userData }: CommunicationModuleProps) => {
         
         setTimeout(() => {
           setMessages(prev => prev.map(m => m.id === tempId ? { ...m, status: 'delivered' } : m));
-        }, 1000);
+        }, 800);
         
         setTimeout(() => {
           setMessages(prev => prev.map(m => m.id === tempId ? { ...m, status: 'read' } : m));
-        }, 2000);
+        }, 1600);
         
-        fetchMessages(selectedContact);
+        // Refresh messages from server to sync state and any automated reply
+        await fetchMessages(selectedContact);
+
+        // Synchronize contact list with backend in background
+        const cRes = await fetch(`http://127.0.0.1:8000/api/escalation/contacts/?type=${activeTab}`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (cRes.ok) {
+          const updated = await cRes.json();
+          setContacts(updated);
+        }
       } else {
         setMessages(prev => prev.filter(m => m.id !== tempId));
         toast.error(t('failedSendMessage'));
@@ -337,6 +465,39 @@ export const CommunicationModule = ({ userData }: CommunicationModuleProps) => {
     } catch (err) {
       setMessages(prev => prev.filter(m => m.id !== tempId));
       toast.error(t('failedSendMessage'));
+    }
+  };
+
+  const handleDeleteConversation = async () => {
+    if (!selectedContact?.esc_id) return;
+    setIsDeleting(true);
+    try {
+      const token = localStorage.getItem('access_token') || localStorage.getItem('token');
+      const response = await fetch(`http://127.0.0.1:8000/api/escalation/requests/${selectedContact.esc_id}/chat/`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+
+      if (response.ok) {
+        toast.success("Conversation deleted successfully");
+        setMessages([]);
+        messagesLenRef.current = 0;
+        
+        // Update contact preview in list
+        setContacts(prev => prev.map(c => 
+          (c.esc_id === selectedContact.esc_id || (selectedContact.id && c.id === selectedContact.id))
+            ? { ...c, lastMsg: "No active cases", time: "Active", unread: 0 }
+            : c
+        ));
+        setSelectedContact((prev: any) => prev ? { ...prev, lastMsg: "No active cases", time: "Active", unread: 0 } : prev);
+        setShowDeleteConfirm(false);
+      } else {
+        toast.error("Failed to delete conversation");
+      }
+    } catch (err) {
+      toast.error("Failed to delete conversation");
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -376,6 +537,26 @@ export const CommunicationModule = ({ userData }: CommunicationModuleProps) => {
       setIsBroadcasting(false);
     }
   };
+
+  const filteredContacts = contacts.filter((contact: any) => {
+    if (!searchQuery.trim()) return true;
+    const q = searchQuery.toLowerCase();
+    return (
+      (contact.name && contact.name.toLowerCase().includes(q)) ||
+      (contact.lastMsg && contact.lastMsg.toLowerCase().includes(q)) ||
+      (contact.location && contact.location.toLowerCase().includes(q))
+    );
+  });
+
+  const filteredBroadcasts = broadcastsHistory.filter((b: any) => {
+    if (!searchQuery.trim()) return true;
+    const q = searchQuery.toLowerCase();
+    return (
+      (b.message && b.message.toLowerCase().includes(q)) ||
+      (b.officer_name && b.officer_name.toLowerCase().includes(q)) ||
+      (b.region && b.region.toLowerCase().includes(q))
+    );
+  });
 
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-700 h-[calc(100vh-180px)]">
@@ -426,6 +607,8 @@ export const CommunicationModule = ({ userData }: CommunicationModuleProps) => {
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-500 w-4 h-4" />
               <input 
                 type="text" 
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder={t('searchContactsPlaceholder')}
                 className="w-full pl-9 pr-4 py-2.5 bg-muted/50 dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-xl text-xs outline-none focus:border-[#2E7D32] transition-all text-gray-900 dark:text-gray-100"
               />
@@ -433,77 +616,109 @@ export const CommunicationModule = ({ userData }: CommunicationModuleProps) => {
           </div>
 
           <div className="flex-1 overflow-y-auto p-2 space-y-1 bg-muted/20 dark:bg-gray-900/20">
-            {activeTab === 'broadcasts' ? (
-              broadcastsHistory.map((b, idx) => (
-                <div 
-                  key={b.id}
-                  onClick={() => setSelectedContact({ isBroadcast: true, ...b })}
-                  className={`p-4 cursor-pointer transition-all border border-transparent rounded-2xl mb-2
-                    ${selectedContact?.id === b.id 
-                      ? 'bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-800' 
-                      : 'bg-card hover:bg-gray-50 dark:hover:bg-gray-800'
-                    }`}
-                >
-                  <div className="flex items-start gap-3">
-                    <div className="bg-amber-100 dark:bg-amber-900/50 p-2 rounded-xl text-amber-600 dark:text-amber-400 flex-shrink-0">
-                      <Bell size={18} className={idx === 0 ? "animate-pulse" : ""} />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex justify-between items-center mb-1">
-                        <h4 className="font-bold text-sm text-gray-900 dark:text-white truncate">
-                          {idx === 0 ? 'Latest Broadcast' : 'Previous Broadcast'}
-                        </h4>
-                        <span className="text-[10px] font-bold text-gray-400 whitespace-nowrap">
-                          {new Date(b.created_at).toLocaleDateString()}
-                        </span>
+            {loading ? (
+              <div className="flex flex-col items-center justify-center p-8 space-y-2 text-gray-400">
+                <Loader2 className="animate-spin text-[#2E7D32]" size={24} />
+                <span className="text-xs font-bold">Loading contacts...</span>
+              </div>
+            ) : activeTab === 'broadcasts' ? (
+              filteredBroadcasts.length === 0 ? (
+                <p className="text-xs text-gray-400 font-medium text-center p-6">No broadcasts found.</p>
+              ) : (
+                filteredBroadcasts.map((b, idx) => (
+                  <div 
+                    key={b.id}
+                    onClick={() => setSelectedContact({ isBroadcast: true, ...b })}
+                    className={`p-4 cursor-pointer transition-all border border-transparent rounded-2xl mb-2
+                      ${selectedContact?.id === b.id 
+                        ? 'bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-800' 
+                        : 'bg-card hover:bg-gray-50 dark:hover:bg-gray-800'
+                      }`}
+                  >
+                    <div className="flex items-start gap-3">
+                      <div className="bg-amber-100 dark:bg-amber-900/50 p-2 rounded-xl text-amber-600 dark:text-amber-400 flex-shrink-0">
+                        <Bell size={18} className={idx === 0 ? "animate-pulse" : ""} />
                       </div>
-                      <p className="text-xs text-gray-500 dark:text-gray-400 line-clamp-2">
-                        {b.message}
-                      </p>
-                      <div className="mt-2 text-[10px] font-bold text-gray-400 uppercase tracking-widest">
-                        From: {b.officer_name} ({b.region})
+                      <div className="flex-1 min-w-0">
+                        <div className="flex justify-between items-center mb-1">
+                          <h4 className="font-bold text-sm text-gray-900 dark:text-white truncate">
+                            {idx === 0 ? 'Latest Broadcast' : 'Previous Broadcast'}
+                          </h4>
+                          <span className="text-[10px] font-bold text-gray-400 whitespace-nowrap">
+                            {new Date(b.created_at).toLocaleDateString()}
+                          </span>
+                        </div>
+                        <p className="text-xs text-gray-500 dark:text-gray-400 line-clamp-2">
+                          {b.message}
+                        </p>
+                        <div className="mt-2 text-[10px] font-bold text-gray-400 uppercase tracking-widest">
+                          From: {b.officer_name} ({b.region})
+                        </div>
                       </div>
                     </div>
                   </div>
-                </div>
-              ))
+                ))
+              )
+            ) : filteredContacts.length === 0 ? (
+              <p className="text-xs text-gray-400 font-medium text-center p-6">No contacts found.</p>
             ) : (
-              contacts.map((contact: any) => (
-                <div 
-                  key={contact.id}
-                  onClick={() => setSelectedContact(contact)}
-                  className={`p-4 cursor-pointer transition-all border border-transparent rounded-2xl
-                    ${selectedContact?.id === contact.id 
-                      ? 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800 shadow-md' 
-                      : 'bg-card hover:bg-gray-50 dark:hover:bg-gray-800'
+              filteredContacts.map((contact: any) => {
+                const isUnread = isContactUnread(contact);
+                const isSelected = selectedContact?.id === contact.id || (selectedContact?.esc_id && selectedContact.esc_id === contact.esc_id);
+
+                return (
+                  <div 
+                    key={contact.id}
+                    onClick={() => handleSelectContact(contact)}
+                    className={`p-4 cursor-pointer transition-all border rounded-2xl ${
+                      isSelected 
+                        ? 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800 shadow-md' 
+                        : isUnread
+                        ? 'bg-amber-50/80 dark:bg-amber-950/30 border-amber-300 dark:border-amber-700 hover:bg-amber-100/70 shadow-sm'
+                        : 'bg-card border-transparent hover:bg-gray-50 dark:hover:bg-gray-800'
                     }`}
-                >
-                  <div className="flex justify-between items-start mb-1">
-                    <p className="font-bold text-gray-900 dark:text-white text-sm">{contact.name}</p>
-                    <span className="text-[10px] font-bold text-gray-400 dark:text-gray-500">{contact.time}</span>
-                  </div>
-                  <div className="flex items-center justify-between mb-2">
-                    <p className="text-xs text-gray-500 truncate pr-4 font-medium">{contact.lastMsg}</p>
-                    {contact.unread > 0 && (
-                      <span className="w-5 h-5 bg-[#2E7D32] text-white text-[10px] font-bold flex items-center justify-center rounded-full">
-                        {contact.unread}
+                  >
+                    <div className="flex justify-between items-start mb-1">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <p className={`font-bold text-sm truncate ${isUnread ? 'text-amber-950 dark:text-amber-200 font-black' : 'text-gray-900 dark:text-white'}`}>
+                          {contact.name}
+                        </p>
+                        {isUnread && (
+                          <span className="flex-shrink-0 flex items-center justify-center p-1.5 bg-amber-500 text-white rounded-full animate-bounce shadow-md" title="New unread message">
+                            <Bell size={13} className="stroke-[2.5]" />
+                          </span>
+                        )}
+                      </div>
+                      <span className="text-[10px] font-bold text-gray-400 dark:text-gray-500 flex-shrink-0">{contact.time}</span>
+                    </div>
+                    <div className="flex items-center justify-between mb-2">
+                      <p className={`text-xs truncate pr-4 ${isUnread ? 'text-amber-900 dark:text-amber-300 font-bold' : 'text-gray-500 font-medium'}`}>
+                        {contact.lastMsg}
+                      </p>
+                      {isUnread ? (
+                        <div className="flex items-center gap-1">
+                          <span className="min-w-[20px] h-5 px-1.5 bg-amber-500 text-white text-[10px] font-black flex items-center justify-center rounded-full animate-pulse shadow-md">
+                            New
+                          </span>
+                        </div>
+                      ) : (
+                        contact.status === 'urgent' && (
+                          <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse shadow-[0_0_8px_rgba(239,68,68,0.5)]"></div>
+                        )
+                      )}
+                    </div>
+                    <div className="flex items-center justify-between pt-2 border-t border-dashed border-gray-100 dark:border-gray-800">
+                      <span className="text-[9px] font-extrabold text-[#2E7D32] dark:text-green-400 uppercase tracking-widest bg-green-50 dark:bg-green-950/30 px-2 py-0.5 rounded-md">
+                        {activeTab === 'farmers' ? 'Farmer' : activeTab === 'researchers' ? 'Researcher' : 'Agri Officer'}
                       </span>
-                    )}
-                    {contact.status === 'urgent' && (
-                      <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse shadow-[0_0_8px_rgba(239,68,68,0.5)]"></div>
-                    )}
-                  </div>
-                  <div className="flex items-center justify-between pt-2 border-t border-dashed border-gray-100 dark:border-gray-800">
-                    <span className="text-[9px] font-extrabold text-[#2E7D32] dark:text-green-400 uppercase tracking-widest bg-green-50 dark:bg-green-950/30 px-2 py-0.5 rounded-md">
-                      {activeTab === 'farmers' ? 'Farmer' : activeTab === 'researchers' ? 'Researcher' : 'Agri Officer'}
-                    </span>
-                    <div className="flex items-center gap-1">
-                      <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse shadow-[0_0_4px_rgba(34,197,94,0.5)]"></span>
-                      <span className="text-[9px] font-black text-green-600 dark:text-green-400 uppercase tracking-widest">Online</span>
+                      <div className="flex items-center gap-1">
+                        <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse shadow-[0_0_4px_rgba(34,197,94,0.5)]"></span>
+                        <span className="text-[9px] font-black text-green-600 dark:text-green-400 uppercase tracking-widest">Online</span>
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))
+                );
+              })
             )}
           </div>
         </Card>
@@ -540,7 +755,7 @@ export const CommunicationModule = ({ userData }: CommunicationModuleProps) => {
                          ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400'
                          : 'bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400'
                      }`}>
-                       {selectedContact.name.substring(0, 2)}
+                       {selectedContact.name ? selectedContact.name.substring(0, 2) : '??'}
                      </div>
                      <div>
                        <h4 className="font-black text-gray-900 dark:text-white">{selectedContact.name}</h4>
@@ -554,12 +769,20 @@ export const CommunicationModule = ({ userData }: CommunicationModuleProps) => {
                      </div>
                    </div>
                  </div>
-                <div className="flex gap-2">
+                <div className="flex items-center gap-2">
                   <Button variant="outline" className="p-2 h-auto rounded-xl border-gray-100 dark:border-gray-700 text-gray-500 dark:text-gray-400 hover:bg-muted">
                     <Phone size={18} />
                   </Button>
                   <Button variant="outline" className="p-2 h-auto rounded-xl border-gray-100 dark:border-gray-700 text-gray-500 dark:text-gray-400 hover:bg-muted">
                     <Mail size={18} />
+                  </Button>
+                  <Button 
+                    variant="outline" 
+                    onClick={() => setShowDeleteConfirm(true)}
+                    title="Delete Conversation"
+                    className="p-2 h-auto rounded-xl border-red-100 dark:border-red-900/30 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 hover:text-red-600 transition-all"
+                  >
+                    <Trash2 size={18} />
                   </Button>
                 </div>
               </div>
@@ -572,44 +795,55 @@ export const CommunicationModule = ({ userData }: CommunicationModuleProps) => {
                   </span>
                 </div>
 
-                 {messages.map((msg) => {
-                  const isMyMessage = (msg.sender_type === 'officer' && isOfficer) || 
-                                      (msg.sender_type === 'farmer' && !isOfficer) || 
-                                      (msg.sender_type === 'researcher' && isResearcher);
-                  return (
-                    <div key={msg.id} className={`flex ${isMyMessage ? 'justify-end' : 'justify-start'}`}>
-                      <div className={`max-w-[70%] p-4 rounded-3xl text-sm shadow-sm ${
-                        isMyMessage 
-                          ? 'bg-[#2E7D32] dark:bg-green-700 text-white rounded-tr-none' 
-                          : 'bg-card text-gray-800 dark:text-gray-200 rounded-tl-none border border-gray-100 dark:border-gray-700'
-                      }`}>
-                        <p className="leading-relaxed font-medium">{msg.text}</p>
-                        <div className="flex items-center justify-between gap-4 mt-2 border-t border-white/10 dark:border-gray-700/30 pt-1.5">
-                          <div className="flex items-center gap-1 opacity-60">
-                            <Clock size={10} />
-                            <span className="text-[9px] font-bold">{msg.time}</span>
-                          </div>
-                          {isMyMessage && (
-                            <div className="flex items-center">
-                              {msg.status === 'sending' && (
-                                <Clock size={10} className="text-white/40 animate-pulse" />
-                              )}
-                              {msg.status === 'sent' && (
-                                <Check size={12} className="text-white/60 dark:text-gray-400/60" />
-                              )}
-                              {msg.status === 'delivered' && (
-                                <CheckCheck size={12} className="text-white/60 dark:text-gray-400/60" />
-                              )}
-                              {msg.status === 'read' && (
-                                <CheckCheck size={12} className="text-sky-300 dark:text-sky-400 font-black" />
-                              )}
+                {chatLoading ? (
+                  <div className="flex flex-col items-center justify-center p-12 space-y-2 text-gray-400">
+                    <Loader2 className="animate-spin text-[#2E7D32]" size={32} />
+                    <span className="text-xs font-bold">Loading chat history...</span>
+                  </div>
+                ) : messages.length === 0 ? (
+                  <div className="text-center py-12 text-gray-400 space-y-2">
+                    <p className="text-xs font-semibold">No messages yet. Send a message to start the consultation.</p>
+                  </div>
+                ) : (
+                  messages.map((msg) => {
+                    const isMyMessage = (msg.sender_type === 'officer' && isOfficer) || 
+                                        (msg.sender_type === 'farmer' && !isOfficer && !isResearcher) || 
+                                        (msg.sender_type === 'researcher' && isResearcher);
+                    return (
+                      <div key={msg.id} className={`flex ${isMyMessage ? 'justify-end' : 'justify-start'}`}>
+                        <div className={`max-w-[70%] p-4 rounded-3xl text-sm shadow-sm ${
+                          isMyMessage 
+                            ? 'bg-[#2E7D32] dark:bg-green-700 text-white rounded-tr-none' 
+                            : 'bg-card text-gray-800 dark:text-gray-200 rounded-tl-none border border-gray-100 dark:border-gray-700'
+                        }`}>
+                          <p className="leading-relaxed font-medium">{msg.text}</p>
+                          <div className="flex items-center justify-between gap-4 mt-2 border-t border-white/10 dark:border-gray-700/30 pt-1.5">
+                            <div className="flex items-center gap-1 opacity-60">
+                              <Clock size={10} />
+                              <span className="text-[9px] font-bold">{msg.time}</span>
                             </div>
-                          )}
+                            {isMyMessage && (
+                              <div className="flex items-center">
+                                {msg.status === 'sending' && (
+                                  <Clock size={10} className="text-white/40 animate-pulse" />
+                                )}
+                                {msg.status === 'sent' && (
+                                  <Check size={12} className="text-white/60 dark:text-gray-400/60" />
+                                )}
+                                {msg.status === 'delivered' && (
+                                  <CheckCheck size={12} className="text-white/60 dark:text-gray-400/60" />
+                                )}
+                                {msg.status === 'read' && (
+                                  <CheckCheck size={12} className="text-sky-300 dark:text-sky-400 font-black" />
+                                )}
+                              </div>
+                            )}
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  );
-                })}
+                    );
+                  })
+                )}
                 <div ref={messagesEndRef} />
               </div>
 
@@ -744,6 +978,55 @@ export const CommunicationModule = ({ userData }: CommunicationModuleProps) => {
                 className="rounded-xl bg-[#2E7D32] hover:bg-[#1B5E20] text-white font-bold px-6 shadow-lg shadow-green-900/20"
               >
                 {isBroadcasting ? 'Sending...' : 'Send Broadcast'}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Conversation Confirmation Modal */}
+      {showDeleteConfirm && (
+        <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+          <div className="bg-card w-full max-w-md rounded-3xl shadow-2xl overflow-hidden border border-gray-100 dark:border-gray-800 p-6 animate-in zoom-in-95 duration-200">
+            <div className="flex items-center gap-4 mb-4">
+              <div className="p-3 bg-red-100 dark:bg-red-900/30 rounded-2xl text-red-600 dark:text-red-400">
+                <Trash2 size={24} />
+              </div>
+              <div>
+                <h3 className="font-black text-lg text-gray-900 dark:text-white">Delete Conversation?</h3>
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">This action cannot be undone.</p>
+              </div>
+            </div>
+            
+            <p className="text-sm text-gray-600 dark:text-gray-300 mb-6 leading-relaxed">
+              Are you sure you want to delete the chat history with <span className="font-bold text-gray-900 dark:text-white">{selectedContact?.name}</span>? All messages in this conversation will be permanently removed.
+            </p>
+
+            <div className="flex justify-end gap-3">
+              <Button 
+                variant="outline"
+                onClick={() => setShowDeleteConfirm(false)}
+                className="rounded-xl font-bold px-4"
+                disabled={isDeleting}
+              >
+                Cancel
+              </Button>
+              <Button 
+                onClick={handleDeleteConversation}
+                disabled={isDeleting}
+                className="rounded-xl bg-red-600 hover:bg-red-700 text-white font-bold px-5 shadow-lg shadow-red-900/20 gap-2"
+              >
+                {isDeleting ? (
+                  <>
+                    <Loader2 size={16} className="animate-spin" />
+                    Deleting...
+                  </>
+                ) : (
+                  <>
+                    <Trash2 size={16} />
+                    Delete Conversation
+                  </>
+                )}
               </Button>
             </div>
           </div>

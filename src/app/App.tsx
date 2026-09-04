@@ -1,5 +1,5 @@
 import { useState, useEffect, useLayoutEffect, useRef } from 'react';
-import { BarChart2 } from 'lucide-react';
+import { BarChart2, ShieldAlert } from 'lucide-react';
 import { Sidebar } from './components/Sidebar';
 import { WeatherRiskWidget } from './components/WeatherRiskWidget';
 import { SatelliteMonitoringView } from './components/SatelliteMonitoringView';
@@ -20,6 +20,8 @@ import { CommunicationModule } from './components/CommunicationModule';
 import { OfficerEscalationTable } from './components/OfficerEscalationTable';
 import { AITrainingCenter } from './components/AITrainingCenter';
 import { SatelliteInsightsPanel } from './components/SatelliteInsightsPanel';
+import { UserManagementModule } from './components/UserManagementModule';
+import { AdminSupportModule } from './components/AdminSupportModule';
 import { toast } from 'sonner';
 import { useTranslation } from './utils/translations';
 
@@ -48,7 +50,19 @@ export default function App() {
   });
 
 
-  const [userData, setUserData] = useState<{ username?: string, email?: string, role?: string } | null>(null);
+  const [userData, setUserData] = useState<{
+    username?: string;
+    email?: string;
+    role?: string;
+    is_restricted?: boolean;
+    restriction_reason?: string;
+    scan_count?: number;
+    remaining_scans?: number;
+    scan_limit?: number;
+    is_superuser?: boolean;
+    theme_preference?: string;
+    [key: string]: any;
+  } | null>(null);
   const [isProfileLoading, setIsProfileLoading] = useState(isAuthenticated);
 
   useEffect(() => {
@@ -70,6 +84,36 @@ export default function App() {
             const data = await response.json();
             setUserData(data);
 
+            // Alert user if account is restricted
+            if (data.is_restricted) {
+              const roleLower = (data.role || '').toLowerCase();
+              let title = 'Account Restricted';
+              let desc = '';
+
+              if (roleLower === 'farmer') {
+                const remaining = data.daily_remaining_scans !== undefined ? data.daily_remaining_scans : 3;
+                title = 'Farmer Restricted: 3 Scans Per Day';
+                desc = `You are permitted a maximum of 3 disease scans today (${remaining} remaining). Reason: ${data.restriction_reason || 'Field policy review'}.`;
+              } else if (roleLower.includes('officer')) {
+                const remaining = data.daily_remaining_reviews !== undefined ? data.daily_remaining_reviews : 3;
+                title = 'Officer Restricted: 3 Farmer Reviews Per Day';
+                desc = `You are permitted to review up to 3 farmer cases today (${remaining} remaining). Reason: ${data.restriction_reason || 'Departmental review'}.`;
+              } else if (roleLower === 'researcher') {
+                const remaining = data.daily_remaining_downloads !== undefined ? data.daily_remaining_downloads : 3;
+                title = 'Researcher Restricted: 3 Downloads Per Day';
+                desc = `You are permitted up to 3 dataset downloads today (${remaining} remaining). Reason: ${data.restriction_reason || 'Dataset audit'}.`;
+              } else {
+                const remaining = data.remaining_scans !== undefined ? data.remaining_scans : 3;
+                title = 'Account Restricted: Daily Limit 3';
+                desc = `Daily actions are capped at 3 per day (${remaining} remaining). Reason: ${data.restriction_reason || 'Policy restriction'}.`;
+              }
+
+              toast.warning(title, {
+                description: desc,
+                duration: 9000,
+              });
+            }
+
             // Apply theme preference from profile and save to localStorage
             if (data.theme_preference) {
               localStorage.setItem('theme_preference', data.theme_preference);
@@ -88,7 +132,7 @@ export default function App() {
 
             let allowedSections: string[] = [];
             if (isAdminUser) {
-              allowedSections = ['dashboard', 'ai-training', 'settings'];
+              allowedSections = ['dashboard', 'ai-training', 'user-management', 'support-tickets', 'settings'];
             } else if (isOfficerUser) {
               allowedSections = ['dashboard', 'communications', 'expert-review', 'data', 'settings'];
             } else if (isResearcherUser) {
@@ -98,9 +142,7 @@ export default function App() {
             }
 
             if (!allowedSections.includes(activeSection)) {
-               setActiveSection(isAdminUser ? 'ai-training' : 'dashboard');
-            } else if (isAdminUser && activeSection === 'dashboard') {
-               setActiveSection('ai-training');
+               setActiveSection(allowedSections[0] || 'dashboard');
             }
           }
         } catch (error) {
@@ -137,9 +179,11 @@ export default function App() {
 
   const getInitialSection = () => {
     const path = window.location.pathname;
-    const validSections = ['dashboard', 'satellite', 'diagnosis', 'data', 'communications', 'expert-review', 'ai-training', 'escalate', 'settings', 'satellite-insights'];
+    const validSections = ['dashboard', 'satellite', 'diagnosis', 'data', 'communications', 'expert-review', 'ai-training', 'user-management', 'support-tickets', 'escalate', 'settings', 'satellite-insights'];
     const section = path.substring(1);
     if (validSections.includes(section)) return section;
+    const saved = localStorage.getItem('watermelon_active_section');
+    if (saved && validSections.includes(saved)) return saved;
     return 'dashboard';
   };
 
@@ -147,6 +191,13 @@ export default function App() {
   const [activeSection, setActiveSection] = useState(getInitialSection());
   const [globalUnreadBroadcasts, setGlobalUnreadBroadcasts] = useState(0);
   const broadcastsLenRef = useRef(0);
+
+  // Persist activeSection to localStorage
+  useEffect(() => {
+    if (activeSection) {
+      localStorage.setItem('watermelon_active_section', activeSection);
+    }
+  }, [activeSection]);
 
   // Clear unread badge when entering communications
   useEffect(() => {
@@ -190,9 +241,16 @@ export default function App() {
         if (response.ok) {
           const data = await response.json();
           if (broadcastsLenRef.current > 0 && data.length > broadcastsLenRef.current) {
-             toast.success(t('newBroadcastReceived') || "New Regional Broadcast Received!");
-             playReceiveSound();
-             setGlobalUnreadBroadcasts(prev => prev + (data.length - broadcastsLenRef.current));
+            const alertsEnabled = localStorage.getItem('broadcast_alerts') !== 'false';
+            if (alertsEnabled) {
+              const latest = data[0];
+              const toastMsg = latest 
+                ? `${latest.officer_name ? latest.officer_name + ': ' : ''}${latest.message}` 
+                : (t('newBroadcastReceived') || "New Regional Broadcast Received!");
+              toast.info(`📢 ${toastMsg}`, { duration: 6000 });
+              playReceiveSound();
+            }
+            setGlobalUnreadBroadcasts(prev => prev + (data.length - broadcastsLenRef.current));
           }
           broadcastsLenRef.current = data.length;
         }
@@ -203,6 +261,20 @@ export default function App() {
     const interval = setInterval(fetchGlobalBroadcasts, 10000);
     return () => clearInterval(interval);
   }, [isAuthenticated, userData, t]);
+
+  // Global listener for theme changes across modules
+  useEffect(() => {
+    const handleThemeChange = (e: any) => {
+      const newTheme = e.detail || localStorage.getItem('theme_preference') || 'light';
+      if (newTheme === 'dark') {
+        document.documentElement.classList.add('dark');
+      } else {
+        document.documentElement.classList.remove('dark');
+      }
+    };
+    window.addEventListener('watermelon-theme-change', handleThemeChange);
+    return () => window.removeEventListener('watermelon-theme-change', handleThemeChange);
+  }, []);
 
   // Apply theme immediately from localStorage even before profile loads
   // But keep Login/Register/Landing always in light mode as requested
@@ -220,7 +292,7 @@ export default function App() {
     } else {
       document.documentElement.classList.remove('dark');
     }
-  }, [isAuthenticated, authMode]);
+  }, [isAuthenticated, authMode, activeSection]);
 
   // Handle URL syncing when state changes
   useEffect(() => {
@@ -250,7 +322,7 @@ export default function App() {
         else setAuthMode('landing');
       } else {
         const section = path.substring(1);
-        if (['dashboard', 'satellite', 'diagnosis', 'data', 'communications', 'expert-review', 'ai-training', 'escalate', 'settings', 'satellite-insights'].includes(section)) {
+        if (['dashboard', 'satellite', 'diagnosis', 'data', 'communications', 'expert-review', 'ai-training', 'user-management', 'support-tickets', 'escalate', 'settings', 'satellite-insights'].includes(section)) {
           setActiveSection(section);
         } else {
           setActiveSection('dashboard');
@@ -361,6 +433,8 @@ export default function App() {
                   {activeSection === 'communications' && t('communications')}
                   {activeSection === 'expert-review' && t('expertReview')}
                   {activeSection === 'ai-training' && !userData?.role?.toLowerCase()?.includes('officer') && t('aiTraining')}
+                  {activeSection === 'user-management' && isAdmin && (t('userManagement') || 'User Account Management')}
+                  {activeSection === 'support-tickets' && isAdmin && (t('supportTickets') || 'Problem Reports & Support Inquiries')}
                   {activeSection === 'satellite-insights' && 'Satellite Data Insights'}
                   {activeSection === 'settings' && t('systemSettings')}
                 </h2>
@@ -372,6 +446,8 @@ export default function App() {
                   {activeSection === 'communications' && t('communicationsSubtitle')}
                   {activeSection === 'expert-review' && t('expertReviewSubtitle')}
                   {activeSection === 'ai-training' && !userData?.role?.toLowerCase()?.includes('officer') && t('aiTrainingSubtitle')}
+                  {activeSection === 'user-management' && isAdmin && (t('userManagementSubtitle') || 'Overview of platform accounts, access permissions, and account restrictions')}
+                  {activeSection === 'support-tickets' && isAdmin && (t('supportTicketsSubtitle') || 'Review user-submitted problems from the landing page, triage issues, and respond with resolutions')}
                   {activeSection === 'satellite-insights' && 'NDVI farm health overview & AI training data export'}
                   {activeSection === 'settings' && t('settingsSubtitle')}
                 </p>
@@ -407,13 +483,58 @@ export default function App() {
           </div>
         </header>
 
+        {/* Global Account Restriction Warning Banner */}
+        {userData?.is_restricted && (() => {
+          const roleLower = (userData.role || '').toLowerCase();
+          
+          let badge = 'Account Restricted';
+          let bannerMsg = 'Your account has restricted daily allowances.';
+          let capBadge = 'Limit: 3 / Day';
+          let advice = userData.restriction_reason ? `Reason: ${userData.restriction_reason}` : '';
+
+          if (roleLower === 'farmer') {
+            const remaining = userData.daily_remaining_scans !== undefined ? userData.daily_remaining_scans : 3;
+            badge = 'Farmer Account Restricted';
+            bannerMsg = `Your field crop diagnosis is limited to 3 scans per day (${remaining} remaining today). Please consult your local Agricultural Extension Officer for farm assistance.`;
+            capBadge = '3 Scans / Day';
+          } else if (roleLower.includes('officer')) {
+            const remaining = userData.daily_remaining_reviews !== undefined ? userData.daily_remaining_reviews : 3;
+            badge = 'Officer Account Restricted';
+            bannerMsg = `Official farmer case reviews are limited to 3 reviews per day (${remaining} remaining today) under departmental review. Contact your Provincial Agricultural Department.`;
+            capBadge = '3 Reviews / Day';
+          } else if (roleLower === 'researcher') {
+            const remaining = userData.daily_remaining_downloads !== undefined ? userData.daily_remaining_downloads : 3;
+            badge = 'Researcher Account Restricted';
+            bannerMsg = `Data exports and dataset downloads are limited to 3 downloads per day (${remaining} remaining today) under research audit. Please contact the Research Division Director.`;
+            capBadge = '3 Downloads / Day';
+          }
+
+          return (
+            <div className="bg-amber-50 dark:bg-amber-950/50 border-b border-amber-300 dark:border-amber-700/60 px-8 py-3 flex items-center justify-between text-amber-900 dark:text-amber-200">
+              <div className="flex items-center gap-3">
+                <ShieldAlert className="w-5 h-5 text-amber-600 dark:text-amber-400 flex-shrink-0" />
+                <div className="text-sm">
+                  <span className="font-bold uppercase tracking-wider text-xs mr-2 px-2 py-0.5 rounded bg-amber-200 dark:bg-amber-900/60 text-amber-900 dark:text-amber-200">
+                    {badge}
+                  </span>
+                  <span>{bannerMsg}</span>
+                  {advice && <span className="ml-2 opacity-90 font-medium text-xs">({advice})</span>}
+                </div>
+              </div>
+              <span className="text-xs font-bold px-2.5 py-1 rounded bg-amber-200/80 dark:bg-amber-900/60 text-amber-900 dark:text-amber-200 border border-amber-300 dark:border-amber-700 whitespace-nowrap ml-4">
+                {capBadge}
+              </span>
+            </div>
+          );
+        })()}
+
         {/* Content Sections */}
         <div className="p-8">
           {activeSection === 'dashboard' && (
             <div className="space-y-8">
               <AnalyticsDashboard userData={userData} />
 
-              {!userData?.role?.toLowerCase()?.includes('officer') && !userData?.role?.toLowerCase()?.includes('researcher') && (
+              {!userData?.role?.toLowerCase()?.includes('officer') && !userData?.role?.toLowerCase()?.includes('researcher') && !isAdmin && (
                 <>
                   <div className="grid grid-cols-3 gap-6">
                     <div className="col-span-3">
@@ -439,7 +560,7 @@ export default function App() {
 
           {activeSection === 'diagnosis' && (
             <div className="space-y-6">
-              <AIDiagnosisModule />
+              <AIDiagnosisModule userData={userData} />
 
               <div className="grid grid-cols-3 gap-6">
                 <div className="col-span-3">
@@ -467,11 +588,19 @@ export default function App() {
           )}
 
           {activeSection === 'expert-review' && (
-            <OfficerEscalationTable setActiveSection={setActiveSection} />
+            <OfficerEscalationTable userData={userData} setActiveSection={setActiveSection} />
           )}
 
           {activeSection === 'ai-training' && !userData?.role?.toLowerCase()?.includes('officer') && (
             <AITrainingCenter />
+          )}
+
+          {activeSection === 'user-management' && isAdmin && (
+            <UserManagementModule />
+          )}
+
+          {activeSection === 'support-tickets' && isAdmin && (
+            <AdminSupportModule userData={userData} />
           )}
 
           {activeSection === 'satellite-insights' && (

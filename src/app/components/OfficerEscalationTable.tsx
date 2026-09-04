@@ -18,6 +18,7 @@ import {
   Clock,
   User,
   AlertCircle,
+  AlertTriangle,
   Loader2,
   CheckCircle2,
   Plus
@@ -40,7 +41,7 @@ interface EscalationData {
   time_ago: string;
 }
 
-export function OfficerEscalationTable({ setActiveSection }: { setActiveSection?: (s: string) => void }) {
+export function OfficerEscalationTable({ userData, setActiveSection }: { userData?: any; setActiveSection?: (s: string) => void }) {
   const { t } = useTranslation();
   const [data, setData] = useState<EscalationData[]>([]);
   const [loading, setLoading] = useState(true);
@@ -95,6 +96,14 @@ export function OfficerEscalationTable({ setActiveSection }: { setActiveSection?
   }, []);
 
   const handleResolve = async (id: number) => {
+    // Client-side daily review limit check for restricted officers
+    if (userData?.is_restricted && (userData?.daily_remaining_reviews ?? 1) <= 0) {
+      toast.error(
+        `Daily review limit reached (${userData?.daily_review_count ?? 3}/${userData?.daily_review_limit ?? 3} reviews completed today). Your account is restricted to 3 case reviews per day.`,
+        { duration: 5000 }
+      );
+      return;
+    }
     try {
       const token = localStorage.getItem('access_token');
       const response = await fetch(`http://127.0.0.1:8000/api/escalation/requests/${id}/resolve/`, {
@@ -113,6 +122,12 @@ export function OfficerEscalationTable({ setActiveSection }: { setActiveSection?
         toast.success(t('caseResolvedSuccess'));
         setSelectedRequest(null); // Close modal if open
         fetchData(); // Refresh list
+      } else if (response.status === 403) {
+        const errorData = await response.json();
+        toast.error(
+          errorData?.error || `Daily review limit reached. You have completed your 3 allowed case reviews for today.`,
+          { duration: 6000 }
+        );
       }
     } catch (error) {
       toast.error(t('failedResolveCase'));
@@ -150,6 +165,40 @@ export function OfficerEscalationTable({ setActiveSection }: { setActiveSection?
 
   return (
     <>
+      {/* Restriction Banner for Restricted Officers */}
+      {userData?.is_restricted && (
+        <div className="mb-4 p-4 rounded-xl border border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-900/20 flex items-start gap-3">
+          <AlertTriangle className="w-5 h-5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+          <div className="flex-1">
+            <p className="text-sm font-bold text-amber-800 dark:text-amber-300">
+              Account Restricted — Daily Review Limit Active
+            </p>
+            <p className="text-xs text-amber-700 dark:text-amber-400 mt-0.5">
+              Today's Case Reviews:{' '}
+              <strong>{userData?.daily_review_count ?? 0} / {userData?.daily_review_limit ?? 3}</strong>
+              {' '}({userData?.daily_remaining_reviews ?? 0} remaining today)
+              {(userData?.daily_remaining_reviews ?? 1) <= 0 && (
+                <span className="ml-2 font-bold text-red-600 dark:text-red-400">
+                  — Daily limit reached. Reviews resume tomorrow.
+                </span>
+              )}
+            </p>
+            {userData?.restriction_reason && (
+              <p className="text-xs text-amber-600 dark:text-amber-500 mt-1 italic">
+                Reason: {userData.restriction_reason}
+              </p>
+            )}
+          </div>
+          <span className={`shrink-0 px-2 py-1 rounded-full text-[10px] font-black uppercase tracking-wider ${
+            (userData?.daily_remaining_reviews ?? 1) <= 0
+              ? 'bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-400'
+              : 'bg-amber-100 dark:bg-amber-900/40 text-amber-800 dark:text-amber-400'
+          }`}>
+            {userData?.daily_review_count ?? 0}/{userData?.daily_review_limit ?? 3} Today
+          </span>
+        </div>
+      )}
+
       <Card className="overflow-hidden border-none shadow-lg bg-card rounded-2xl">
         <div className="p-6 border-b border-gray-100 dark:border-gray-700 bg-muted/30">
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">

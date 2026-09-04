@@ -1,4 +1,4 @@
-import { LayoutDashboard, Satellite, Brain, Settings, FileText, MapPin, LogOut, ShieldAlert, MessageSquare, Database, ShieldCheck } from 'lucide-react';
+import { LayoutDashboard, Satellite, Brain, Settings, FileText, MapPin, LogOut, ShieldAlert, MessageSquare, Database, ShieldCheck, Users, LifeBuoy } from 'lucide-react';
 import { useTranslation } from '../utils/translations';
 
 interface SidebarProps {
@@ -24,7 +24,9 @@ export function Sidebar({ activeSection, setActiveSection, onLogout, userData, u
     { id: 'communications', icon: MessageSquare, roles: ['farmer', 'officer'] },
     { id: 'expert-review', icon: ShieldAlert, roles: ['officer'] },
     { id: 'ai-training', icon: Database, roles: ['researcher', 'admin'] },
-    { id: 'satellite-insights', icon: Satellite, roles: ['researcher'], label: 'Satellite Insights', subtitle: 'NDVI & export data' },
+    { id: 'user-management', icon: Users, roles: ['admin'] },
+    { id: 'support-tickets', icon: LifeBuoy, roles: ['admin'] },
+    { id: 'satellite-insights', icon: Satellite, roles: ['researcher'] },
     { id: 'escalate', icon: ShieldAlert, roles: ['farmer'] },
     { id: 'data', icon: FileText, roles: ['farmer', 'officer', 'researcher'] },
     { id: 'settings', icon: Settings, roles: ['farmer', 'officer', 'researcher', 'admin'] },
@@ -42,7 +44,7 @@ export function Sidebar({ activeSection, setActiveSection, onLogout, userData, u
           </div>
           <div>
             <h1 className="font-bold text-[#2E7D32]">WatermelonAI</h1>
-            <p className="text-xs text-gray-500 dark:text-gray-400">Disease Detection</p>
+            <p className="text-xs text-gray-500 dark:text-gray-400">{t('diseaseDetection') || 'Disease Detection'}</p>
           </div>
         </div>
       </div>
@@ -58,10 +60,12 @@ export function Sidebar({ activeSection, setActiveSection, onLogout, userData, u
             let translationKey = item.id;
             if (item.id === 'expert-review') translationKey = 'expertReview';
             if (item.id === 'ai-training') translationKey = 'aiTraining';
+            if (item.id === 'user-management') translationKey = 'userAccounts';
+            if (item.id === 'support-tickets') translationKey = 'supportTickets';
+            if (item.id === 'satellite-insights') translationKey = 'satelliteInsights';
 
-            // Items with a hardcoded label (no translation key) use their label directly
-            const translatedLabel    = (item as any).label    ?? t(translationKey as any);
-            const translatedSubtitle = (item as any).subtitle ?? t(`${translationKey}Subtitle` as any);
+            const translatedLabel    = t(translationKey as any) || (item as any).label || item.id;
+            const translatedSubtitle = t(`${translationKey}Subtitle` as any) || (item as any).subtitle || '';
 
             return (
               <li key={item.id}>
@@ -76,7 +80,9 @@ export function Sidebar({ activeSection, setActiveSection, onLogout, userData, u
                   <div className="flex-grow min-w-0 text-left flex items-center justify-between gap-2">
                     <div className="min-w-0">
                       <div className={`truncate text-sm leading-snug ${isActive ? 'font-semibold' : 'font-medium text-gray-800 dark:text-gray-200'}`}>{translatedLabel}</div>
-                      <div className="text-[10px] opacity-75 truncate leading-none">{translatedSubtitle}</div>
+                      {translatedSubtitle && (
+                        <div className="text-[10px] opacity-75 truncate leading-none">{translatedSubtitle}</div>
+                      )}
                     </div>
                     {item.id === 'communications' && unreadBroadcastCount > 0 && (
                       <span className="flex-shrink-0 w-5 h-5 bg-red-500 text-white text-[10px] font-black flex items-center justify-center rounded-full animate-bounce shadow-md">
@@ -107,7 +113,7 @@ export function Sidebar({ activeSection, setActiveSection, onLogout, userData, u
           </div>
           <button
             onClick={onLogout}
-            title="Logout"
+            title={t('logout') || 'Logout'}
             className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors flex-shrink-0"
           >
             <LogOut className="w-5 h-5" />

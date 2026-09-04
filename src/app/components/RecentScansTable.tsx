@@ -10,6 +10,14 @@ export function RecentScansTable() {
   const { t } = useTranslation();
   const [scans, setScans] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [defaultLocation, setDefaultLocation] = useState<[number, number]>(() => {
+    const savedLat = localStorage.getItem('default_latitude');
+    const savedLng = localStorage.getItem('default_longitude');
+    return [
+      savedLat ? parseFloat(savedLat) : 7.8731,
+      savedLng ? parseFloat(savedLng) : 80.7718,
+    ];
+  });
 
   // Pagination state (persist on refresh)
   const [currentPage, setCurrentPage] = useState(() => {
@@ -22,19 +30,45 @@ export function RecentScansTable() {
     sessionStorage.setItem('recentScansPage', currentPage.toString());
   }, [currentPage]);
 
+  const fetchSettings = async () => {
+    try {
+      const token = localStorage.getItem('access_token') || localStorage.getItem('token');
+      if (!token) return;
+      const response = await fetch('http://127.0.0.1:8000/api/settings/', {
+        headers: { 'Authorization': `Bearer ${token}` },
+      });
+      if (response.ok) {
+        const data = await response.json();
+        if (data.latitude != null && data.longitude != null) {
+          const lat = parseFloat(data.latitude);
+          const lng = parseFloat(data.longitude);
+          setDefaultLocation([lat, lng]);
+          localStorage.setItem('default_latitude', String(lat));
+          localStorage.setItem('default_longitude', String(lng));
+        }
+      }
+    } catch (error) {
+      console.error("Failed to fetch default GPS settings", error);
+    }
+  };
+
   useEffect(() => {
-    const handleNewScan = () => {
+    const handleRefresh = () => {
       fetchScans();
+      fetchSettings();
     };
 
-    window.addEventListener('watermelon-new-scan', handleNewScan);
+    window.addEventListener('watermelon-new-scan', handleRefresh);
+    window.addEventListener('watermelon-scans-updated', handleRefresh);
     return () => {
-      window.removeEventListener('watermelon-new-scan', handleNewScan);
+      window.removeEventListener('watermelon-new-scan', handleRefresh);
+      window.removeEventListener('watermelon-scans-updated', handleRefresh);
     };
   }, []);
 
   useEffect(() => {
     fetchScans();
+    fetchSettings();
   }, []);
 
   const fetchScans = async () => {
@@ -78,6 +112,12 @@ export function RecentScansTable() {
     }
   };
 
+  const formatGpsCoordinates = (lat: number, lng: number) => {
+    const latDir = lat >= 0 ? 'N' : 'S';
+    const lngDir = lng >= 0 ? 'E' : 'W';
+    return `${Math.abs(lat).toFixed(4)}° ${latDir}, ${Math.abs(lng).toFixed(4)}° ${lngDir}`;
+  };
+
   const severityColors: Record<string, string> = {
     HIGH: 'bg-red-100 text-red-800 border-red-200 dark:bg-red-900/30 dark:text-red-400 dark:border-red-800/50',
     MEDIUM: 'bg-amber-100 text-amber-800 border-amber-200 dark:bg-amber-900/30 dark:text-amber-400 dark:border-amber-800/50',
@@ -107,7 +147,7 @@ export function RecentScansTable() {
             <TableRow>
               <TableHead className="w-24">{t('scanId')}</TableHead>
               <TableHead>{t('dateTime')}</TableHead>
-              <TableHead>{t('location')}</TableHead>
+              <TableHead>{t('defaultLocation') || t('location')}</TableHead>
               <TableHead>{t('diseaseDetectedLabel')}</TableHead>
               <TableHead className="text-center">{t('confidenceLabel')}</TableHead>
               <TableHead className="text-center">{t('severity')}</TableHead>
@@ -135,6 +175,9 @@ export function RecentScansTable() {
                 ? `${(scan.prediction.confidence * 100).toFixed(1)}%`
                 : '--';
               const severityVal = scan.prediction?.severity || 'UNKNOWN';
+              const scanLat = scan.latitude != null ? parseFloat(scan.latitude) : defaultLocation[0];
+              const scanLng = scan.longitude != null ? parseFloat(scan.longitude) : defaultLocation[1];
+              const gpsLocation = formatGpsCoordinates(scanLat, scanLng);
 
               return (
                 <TableRow key={scan.id}>
@@ -150,8 +193,8 @@ export function RecentScansTable() {
                   </TableCell>
                   <TableCell>
                     <div className="flex items-center gap-2">
-                      <MapPin className="w-4 h-4 text-[#2E7D32]" />
-                      <span className="dark:text-gray-200">{scan.location_name || t('unknownField')}</span>
+                      <MapPin className="w-4 h-4 text-[#2E7D32] shrink-0" />
+                      <span className="dark:text-gray-200 font-mono text-sm">{gpsLocation}</span>
                     </div>
                   </TableCell>
                   <TableCell>

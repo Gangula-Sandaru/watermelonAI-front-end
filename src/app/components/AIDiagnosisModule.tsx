@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { Card } from './ui/card';
-import { Upload, CircleCheck, CircleAlert, Leaf, Loader2, X, History, Calendar, AlertTriangle, Eye, EyeOff, Maximize2, Brain } from 'lucide-react';
+import { Upload, CircleCheck, CircleAlert, Leaf, Loader2, X, History, Calendar, AlertTriangle, Eye, EyeOff, Maximize2, Brain, ShieldAlert } from 'lucide-react';
 import { Button } from './ui/button';
 import { toast } from 'sonner';
 import { TreatmentRecommendation } from './TreatmentRecommendation';
@@ -79,7 +79,17 @@ const getFullUrl = (url: string | null) => {
   return `http://127.0.0.1:8000${cleanUrl}`;
 };
 
-export function AIDiagnosisModule() {
+interface AIDiagnosisModuleProps {
+  userData?: {
+    is_restricted?: boolean;
+    restriction_reason?: string;
+    scan_count?: number;
+    remaining_scans?: number;
+    scan_limit?: number;
+  } | null;
+}
+
+export function AIDiagnosisModule({ userData }: AIDiagnosisModuleProps = {}) {
   const { t, currentLanguage } = useTranslation();
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
@@ -87,6 +97,60 @@ export function AIDiagnosisModule() {
   const [analysisResult, setAnalysisResult] = useState<any>(null);
   const [history, setHistory] = useState<any[]>([]);
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
+
+  // Restriction tracking
+  const [restrictionData, setRestrictionData] = useState<{
+    is_restricted: boolean;
+    restriction_reason: string;
+    scan_count: number;
+    remaining_scans: number;
+    scan_limit: number;
+    role?: string;
+  } | null>(null);
+
+  const fetchProfileRestrictions = async () => {
+    try {
+      const token = localStorage.getItem('access_token');
+      if (!token) return;
+      const res = await fetch('http://127.0.0.1:8000/api/auth/profile/', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const p = await res.json();
+        if (p.is_restricted) {
+          setRestrictionData({
+            is_restricted: true,
+            restriction_reason: p.restriction_reason || 'Policy restriction',
+            scan_count: p.scan_count || 0,
+            remaining_scans: p.remaining_scans !== undefined ? p.remaining_scans : Math.max(0, 3 - (p.scan_count || 0)),
+            scan_limit: 3,
+            role: p.role || 'farmer'
+          });
+        } else {
+          setRestrictionData(null);
+        }
+      }
+    } catch {}
+  };
+
+  useEffect(() => {
+    if (userData) {
+      if (userData.is_restricted) {
+        setRestrictionData({
+          is_restricted: true,
+          restriction_reason: userData.restriction_reason || 'Policy restriction',
+          scan_count: userData.scan_count || 0,
+          remaining_scans: userData.remaining_scans !== undefined ? userData.remaining_scans : Math.max(0, 3 - (userData.scan_count || 0)),
+          scan_limit: 3,
+          role: userData.role || 'farmer'
+        });
+      } else {
+        setRestrictionData(null);
+      }
+    } else {
+      fetchProfileRestrictions();
+    }
+  }, [userData]);
 
   // New state to control the Unknown Disease popup
   const [showUnknownModal, setShowUnknownModal] = useState(false);
@@ -246,11 +310,28 @@ export function AIDiagnosisModule() {
       return;
     }
 
+    if (restrictionData?.is_restricted && (restrictionData.remaining_scans <= 0 || restrictionData.scan_count >= restrictionData.scan_limit)) {
+      const role = (restrictionData.role || '').toLowerCase();
+      let limitMsg = `Scan limit reached (3/3 scans used). Reason: ${restrictionData.restriction_reason || 'Policy restriction'}`;
+      if (role === 'farmer') {
+        limitMsg = `Farmer scan limit reached (3/3 scans used). Please contact your Agricultural Extension Officer for assistance.`;
+      } else if (role.includes('officer')) {
+        limitMsg = `Officer diagnostic scan limit reached (3/3 scans used). Please contact the Agricultural Department Administrator.`;
+      } else if (role === 'researcher') {
+        limitMsg = `Researcher test scan limit reached (3/3 scans used). Please contact the Research Division Administrator.`;
+      }
+      toast.error(limitMsg);
+      return;
+    }
+
     setIsLoading(true);
     const formData = new FormData();
     formData.append('image', selectedFile);
-    // Add dummy location info
+    const defaultLat = localStorage.getItem('default_latitude') || '7.8731';
+    const defaultLng = localStorage.getItem('default_longitude') || '80.7718';
     formData.append('location_name', 'Field Sector A');
+    formData.append('latitude', defaultLat);
+    formData.append('longitude', defaultLng);
 
     try {
       const token = localStorage.getItem('access_token') || localStorage.getItem('token');
@@ -267,9 +348,33 @@ export function AIDiagnosisModule() {
 
       const data = await response.json();
 
+      if (response.status === 403 && (data.is_restricted || data.error?.includes('Scan limit reached'))) {
+        toast.error(data.error || 'Scan limit reached for restricted account.');
+        setRestrictionData(prev => prev ? {
+          ...prev,
+          scan_count: 3,
+          remaining_scans: 0,
+        } : {
+          is_restricted: true,
+          restriction_reason: data.restriction_reason || 'Policy restriction',
+          scan_count: 3,
+          remaining_scans: 0,
+          scan_limit: 3,
+        });
+        return;
+      }
+
       if (response.ok) {
         setAnalysisResult(data);
         fetchHistory(); // Refresh local history
+
+        if (restrictionData?.is_restricted) {
+          setRestrictionData(prev => prev ? {
+            ...prev,
+            scan_count: (prev.scan_count || 0) + 1,
+            remaining_scans: Math.max(0, (prev.remaining_scans || 1) - 1),
+          } : null);
+        }
 
         // Auto-show heatmap if available
         const hasHeatmap = data?.prediction?.heatmap_image || data?.prediction?.raw_response?.predictions?.heatmap_image || data?.prediction?.raw_response?.heatmap_image;
@@ -329,6 +434,55 @@ export function AIDiagnosisModule() {
           </div>
           <Leaf className="w-8 h-8 text-[#2E7D32]" />
         </div>
+
+        {/* ⚠️ Account Restriction Warning Banner ⚠️ */}
+        {restrictionData?.is_restricted && (() => {
+          const role = (restrictionData.role || '').toLowerCase();
+          let title = 'Account Restricted (Daily Cap)';
+          let roleGuidance = 'Disease diagnosis scans are restricted to a maximum of 3 scans per day.';
+          let contactHelp = 'Daily scan limit reached (3 scans maximum for today). Quota will reset tomorrow, or contact your administrator.';
+
+          if (role === 'farmer') {
+            title = 'Farmer Restricted (3 Scans / Day)';
+            roleGuidance = 'Your field crop disease scanning quota is limited to 3 scans per day under agricultural monitoring.';
+            contactHelp = 'You have used all 3 permitted scans for today. Consult your local Agricultural Extension Officer or return tomorrow.';
+          } else if (role.includes('officer')) {
+            title = 'Officer Diagnostic Quota Restricted';
+            roleGuidance = 'Official field diagnosis privileges are limited to 3 assessments per day under administrative policy review.';
+            contactHelp = 'All 3 diagnostic scans for today have been utilized. Contact the Agricultural Department Administrator to request quota extension.';
+          } else if (role === 'researcher') {
+            title = 'Researcher Laboratory Quota Restricted';
+            roleGuidance = 'AI disease classification test runs are capped at 3 samples per day under research dataset audit.';
+            contactHelp = 'Daily research scan quota exhausted (3/3 today). Contact the Research Division Director for batch quota extension.';
+          }
+
+          return (
+            <div className="w-full mb-6 p-4 bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-700/60 rounded-xl flex items-start gap-3 text-amber-900 dark:text-amber-200 shadow-sm animate-in fade-in">
+              <ShieldAlert className="w-5 h-5 text-amber-600 dark:text-amber-400 mt-0.5 flex-shrink-0" />
+              <div className="flex-1 text-sm">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <span className="font-bold uppercase tracking-wider text-xs bg-amber-200 dark:bg-amber-900/60 px-2 py-0.5 rounded text-amber-900 dark:text-amber-200">
+                    {title}
+                  </span>
+                  <span className="font-bold text-xs">
+                    Today's Scans: {restrictionData.scan_count} / {restrictionData.scan_limit} ({restrictionData.remaining_scans} remaining today)
+                  </span>
+                </div>
+                <p className="mt-1 text-xs font-medium text-amber-800 dark:text-amber-300">
+                  {roleGuidance}
+                </p>
+                <p className="mt-1 text-xs text-amber-800 dark:text-amber-300">
+                  <strong>Reason:</strong> {restrictionData.restriction_reason || 'Policy restriction / administrative review'}
+                </p>
+                {restrictionData.remaining_scans <= 0 && (
+                  <p className="mt-1.5 text-xs font-semibold text-red-600 dark:text-red-400">
+                    {contactHelp}
+                  </p>
+                )}
+              </div>
+            </div>
+          );
+        })()}
 
         {/* 🧠 Full-Width AI Classifier Settings Header 🧠 */}
         <div className="w-full mb-6 p-5 bg-gray-50/70 dark:bg-gray-800/40 rounded-2xl border border-gray-200/60 dark:border-gray-700/50 shadow-sm relative overflow-hidden transition-all duration-300 hover:shadow-md">
@@ -463,13 +617,15 @@ export function AIDiagnosisModule() {
 
             <Button
               onClick={handleAnalyzeClick}
-              disabled={!selectedFile || isLoading}
+              disabled={!selectedFile || isLoading || (restrictionData?.is_restricted && (restrictionData.remaining_scans <= 0 || restrictionData.scan_count >= restrictionData.scan_limit))}
               className="mt-4 w-full bg-[#2E7D32] hover:bg-[#1B5E20] text-white shadow-md transition-all font-semibold py-6 disabled:opacity-50"
             >
               {isLoading ? (
                 <span className="flex items-center gap-2">
                   <Loader2 className="w-5 h-5 animate-spin" /> {t('analyzingImage')}
                 </span>
+              ) : restrictionData?.is_restricted && (restrictionData.remaining_scans <= 0 || restrictionData.scan_count >= restrictionData.scan_limit) ? (
+                'Daily Scan Limit Reached (3/3 Used Today)'
               ) : (
                 t('analyzeDisease')
               )}

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Card } from './ui/card';
 import { Button } from './ui/button';
-import { Settings, Globe, Bell, MapPin, Database, Shield, Trash2, Save, RefreshCw, Lock, Loader2, Search, Maximize2, Maximize, Minimize, X as CloseIcon } from 'lucide-react';
+import { Settings, Globe, Bell, MapPin, Database, Shield, Trash2, Save, RefreshCw, Lock, Loader2, Search, Maximize2, Maximize, Minimize, X as CloseIcon, FileText, CheckCircle2, User, Mail, UserCheck } from 'lucide-react';
 import { toast } from 'sonner';
 import { MapContainer, TileLayer, Marker, useMap, useMapEvents } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
@@ -36,25 +36,78 @@ function LocationPickerInteraction({ onLocationSelect }: { onLocationSelect: (la
   return null;
 }
 
+const COUNTRY_LIST = [
+  "Sri Lanka",
+  "Afghanistan",
+  "Australia",
+  "Bangladesh",
+  "Brazil",
+  "Cambodia",
+  "Canada",
+  "China",
+  "Egypt",
+  "France",
+  "Germany",
+  "Ghana",
+  "India",
+  "Indonesia",
+  "Israel",
+  "Italy",
+  "Japan",
+  "Kenya",
+  "Malaysia",
+  "Maldives",
+  "Mexico",
+  "Myanmar",
+  "Nepal",
+  "Netherlands",
+  "New Zealand",
+  "Nigeria",
+  "Pakistan",
+  "Philippines",
+  "Saudi Arabia",
+  "Singapore",
+  "South Africa",
+  "South Korea",
+  "Spain",
+  "Taiwan",
+  "Tanzania",
+  "Thailand",
+  "Turkey",
+  "Uganda",
+  "United Arab Emirates",
+  "United Kingdom",
+  "United States",
+  "Vietnam"
+];
+
 export const SettingsModule = () => {
   const { t } = useTranslation();
   const [isSaving, setIsSaving] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  
+  // Profile states
+  const [displayName, setDisplayName] = useState('');
+  const [email, setEmail] = useState('');
+  const [country, setCountry] = useState('Sri Lanka');
+  const [bio, setBio] = useState('');
+  const [username, setUsername] = useState('');
+  const [userRole, setUserRole] = useState('farmer');
+
   const [dataRetention, setDataRetention] = useState('6months');
   const [location, setLocation] = useState<[number, number]>([7.8731, 80.7718]);
   const [searchQuery, setSearchQuery] = useState('');
   const [showMap, setShowMap] = useState(false);
   const [isMapMaximized, setIsMapMaximized] = useState(false);
   const [showPurgeWarning, setShowPurgeWarning] = useState(false);
+  const [showTermsModal, setShowTermsModal] = useState(false);
   
   const [showPasswordForm, setShowPasswordForm] = useState(false);
   const [passwordData, setPasswordData] = useState({ old_password: '', new_password: '' });
   const [isChangingPassword, setIsChangingPassword] = useState(false);
   
   // Notification states
-  const [diseaseAlerts, setDiseaseAlerts] = useState(true);
-  const [weatherWarnings, setWeatherWarnings] = useState(true);
-  const [systemUpdates, setSystemUpdates] = useState(false);
+  const [broadcastAlerts, setBroadcastAlerts] = useState(true);
   const [anonymousSharing, setAnonymousSharing] = useState(true);
   const [language, setLanguage] = useState('en');
   const [theme, setTheme] = useState<'light' | 'dark'>('light');
@@ -62,38 +115,52 @@ export const SettingsModule = () => {
   const API_BASE = "http://127.0.0.1:8000/api/settings/";
 
   useEffect(() => {
-    const fetchSettings = async () => {
+    const fetchSettingsAndProfile = async () => {
       try {
         const token = localStorage.getItem('access_token') || localStorage.getItem('token');
-        const response = await fetch(API_BASE, {
-          headers: { 'Authorization': `Bearer ${token}` }
-        });
-        if (response.status === 401) {
+        const headers = { 'Authorization': `Bearer ${token}` };
+        
+        const [settingsRes, profileRes] = await Promise.all([
+          fetch(API_BASE, { headers }),
+          fetch('http://127.0.0.1:8000/api/auth/profile/', { headers })
+        ]);
+
+        if (settingsRes.status === 401 || profileRes.status === 401) {
           window.dispatchEvent(new CustomEvent('watermelon-auth-error'));
           return;
         }
-        if (response.ok) {
-          const data = await response.json();
+
+        if (settingsRes.ok) {
+          const data = await settingsRes.json();
           setDataRetention(data.retention_policy);
           setLocation([parseFloat(data.latitude), parseFloat(data.longitude)]);
-          setDiseaseAlerts(data.disease_alerts);
-          setWeatherWarnings(data.weather_warnings);
-          setSystemUpdates(data.system_updates);
+          localStorage.setItem('default_latitude', String(data.latitude));
+          localStorage.setItem('default_longitude', String(data.longitude));
+          setBroadcastAlerts(data.broadcast_alerts ?? true);
+          localStorage.setItem('broadcast_alerts', String(data.broadcast_alerts ?? true));
           setAnonymousSharing(data.anonymous_data_sharing);
           
           setLanguage(data.language || 'en');
           setTheme(data.theme_preference || 'light');
 
-          // Persist user selected language code locally and dispatch translation update
           localStorage.setItem('language_preference', data.language || 'en');
           window.dispatchEvent(new CustomEvent('watermelon-language-change', { detail: data.language || 'en' }));
           
-          // Apply theme immediately
           if (data.theme_preference === 'dark') {
             document.documentElement.classList.add('dark');
           } else {
             document.documentElement.classList.remove('dark');
           }
+        }
+
+        if (profileRes.ok) {
+          const prof = await profileRes.json();
+          setDisplayName(prof.display_name || prof.username || '');
+          setEmail(prof.email || '');
+          setCountry(prof.country || 'Sri Lanka');
+          setBio(prof.bio || '');
+          setUsername(prof.username || '');
+          setUserRole(prof.role || 'farmer');
         }
       } catch (err) {
         console.error("Failed to fetch settings", err);
@@ -101,53 +168,97 @@ export const SettingsModule = () => {
         setIsLoading(false);
       }
     };
-    fetchSettings();
+    fetchSettingsAndProfile();
   }, []);
 
   const handleSave = async () => {
     setIsSaving(true);
     try {
       const token = localStorage.getItem('access_token') || localStorage.getItem('token');
+      if (!token) {
+        window.dispatchEvent(new CustomEvent('watermelon-auth-error'));
+        return;
+      }
       const selectedLangCode = language;
-      
-      const payload = {
+      const headers = {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      };
+
+      const settingsPayload = {
         language: selectedLangCode,
         latitude: parseFloat(location[0].toFixed(6)),
         longitude: parseFloat(location[1].toFixed(6)),
-        disease_alerts: diseaseAlerts,
-        weather_warnings: weatherWarnings,
-        system_updates: systemUpdates,
-        retention_policy: dataRetention,
+        broadcast_alerts: broadcastAlerts,
         anonymous_data_sharing: anonymousSharing,
+        retention_policy: dataRetention,
         theme_preference: theme
       };
 
-      const response = await fetch(API_BASE, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify(payload)
-      });
+      const profilePayload: Record<string, string> = {
+        display_name: displayName,
+        country: country,
+        bio: bio
+      };
+      // Only include email if non-empty — Django's EmailField rejects blank strings
+      if (email.trim()) {
+        profilePayload.email = email.trim();
+      }
 
-      if (response.status === 401) {
+      const [settingsRes, profileRes] = await Promise.allSettled([
+        fetch(API_BASE, { method: 'PATCH', headers, body: JSON.stringify(settingsPayload) }),
+        fetch('http://127.0.0.1:8000/api/auth/profile/', { method: 'PATCH', headers, body: JSON.stringify(profilePayload) })
+      ]);
+
+      // Unwrap settled results
+      const settingsResult = settingsRes.status === 'fulfilled' ? settingsRes.value : null;
+      const profileResult = profileRes.status === 'fulfilled' ? profileRes.value : null;
+
+      if (settingsResult?.status === 401 || profileResult?.status === 401) {
         window.dispatchEvent(new CustomEvent('watermelon-auth-error'));
         return;
       }
 
-      if (response.ok) {
-        localStorage.setItem('theme_preference', theme);
-        localStorage.setItem('language_preference', selectedLangCode);
-        
-        // Dispatch translation context updates immediately
-        window.dispatchEvent(new CustomEvent('watermelon-language-change', { detail: selectedLangCode }));
-        
-        toast.success(t('settingsSaved'));
+      const settingsOk = settingsResult?.ok ?? false;
+      const profileOk = profileResult?.ok ?? false;
+
+      // Log errors for debugging
+      if (!settingsOk) {
+        const body = await settingsResult?.text().catch(() => '');
+        console.error(`Settings API failed [${settingsResult?.status}]:`, body);
+      }
+      if (!profileOk) {
+        const body = await profileResult?.text().catch(() => '');
+        console.error(`Profile API failed [${profileResult?.status}]:`, body);
+      }
+      if (settingsRes.status === 'rejected') console.error('Settings fetch threw:', settingsRes.reason);
+      if (profileRes.status === 'rejected') console.error('Profile fetch threw:', profileRes.reason);
+
+      if (settingsOk || profileOk) {
+        // At least one succeeded — apply local state updates
+        if (settingsOk) {
+          localStorage.setItem('default_latitude', String(location[0]));
+          localStorage.setItem('default_longitude', String(location[1]));
+          localStorage.setItem('theme_preference', theme);
+          localStorage.setItem('language_preference', selectedLangCode);
+          localStorage.setItem('broadcast_alerts', String(broadcastAlerts));
+          window.dispatchEvent(new CustomEvent('watermelon-language-change', { detail: selectedLangCode }));
+          window.dispatchEvent(new CustomEvent('watermelon-new-scan'));
+          window.dispatchEvent(new CustomEvent('watermelon-scans-updated'));
+        }
+
+        if (settingsOk && profileOk) {
+          toast.success(t('settingsSaved'));
+        } else if (settingsOk) {
+          toast.success('System settings saved. Profile update failed — please try again.');
+        } else {
+          toast.success('Profile saved. System settings update failed — please try again.');
+        }
       } else {
         toast.error(t('settingsSaveError'));
       }
     } catch (err) {
+      console.error('Settings save error:', err);
       toast.error(t('settingsSaveError'));
     } finally {
       setIsSaving(false);
@@ -187,21 +298,23 @@ export const SettingsModule = () => {
     try {
       const token = localStorage.getItem('access_token') || localStorage.getItem('token');
       const response = await fetch(`${API_BASE}purge-history/`, {
-          method: 'POST',
-          headers: { 'Authorization': `Bearer ${token}` }
-        });
-        if (response.status === 401) {
-          window.dispatchEvent(new CustomEvent('watermelon-auth-error'));
-          return;
-        }
-        if (response.ok) {
-          toast.success(t('purgeSuccess'));
-        } else {
-          toast.error(t('purgeError'));
-        }
-      } catch (err) {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (response.status === 401) {
+        window.dispatchEvent(new CustomEvent('watermelon-auth-error'));
+        return;
+      }
+      if (response.ok) {
+        window.dispatchEvent(new CustomEvent('watermelon-new-scan'));
+        window.dispatchEvent(new CustomEvent('watermelon-scans-updated'));
+        toast.success(t('purgeSuccess'));
+      } else {
         toast.error(t('purgeError'));
       }
+    } catch (err) {
+      toast.error(t('purgeError'));
+    }
   };
 
   const handleSearch = async () => {
@@ -230,6 +343,103 @@ export const SettingsModule = () => {
 
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-700">
+      {/* Account Profile Card */}
+      <Card className="p-6">
+        <div className="flex items-center justify-between mb-6 pb-4 border-b border-gray-100 dark:border-gray-800">
+          <div className="flex items-center gap-4">
+            <div className="w-14 h-14 rounded-2xl bg-green-100 dark:bg-green-900/30 text-[#2E7D32] dark:text-green-400 flex items-center justify-center font-black text-xl shadow-inner">
+              {displayName ? displayName.substring(0, 2).toUpperCase() : (username ? username.substring(0, 2).toUpperCase() : 'US')}
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h3 className="font-black text-gray-900 dark:text-white text-lg">{displayName || username || 'User Profile'}</h3>
+                <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-md bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-400">
+                  {userRole === 'agri_officer' ? 'Agri Officer' : userRole === 'researcher' ? 'Researcher' : userRole === 'admin' ? 'Administrator' : 'Farmer'}
+                </span>
+              </div>
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{t('accountSettingsSub')}</p>
+            </div>
+          </div>
+          <User className="w-8 h-8 text-[#2E7D32]" />
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {/* Display Name */}
+          <div>
+            <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 uppercase mb-2 flex items-center gap-1.5">
+              <User size={14} className="text-[#2E7D32]" /> {t('displayName')}
+            </label>
+            <input 
+              type="text" 
+              value={displayName}
+              onChange={(e) => setDisplayName(e.target.value)}
+              placeholder="e.g. John Doe"
+              className="w-full h-11 px-4 border border-gray-200 dark:border-gray-700 rounded-lg text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 outline-none focus:border-[#2E7D32] focus:ring-1 focus:ring-[#2E7D32]"
+            />
+          </div>
+
+          {/* Registered Email */}
+          <div>
+            <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 uppercase mb-2 flex items-center gap-1.5">
+              <Mail size={14} className="text-[#2E7D32]" /> {t('registeredEmail')}
+            </label>
+            <input 
+              type="email" 
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="farmer@watermelon.ai"
+              className="w-full h-11 px-4 border border-gray-200 dark:border-gray-700 rounded-lg text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 outline-none focus:border-[#2E7D32] focus:ring-1 focus:ring-[#2E7D32]"
+            />
+          </div>
+
+          {/* Country */}
+          <div>
+            <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 uppercase mb-2 flex items-center gap-1.5">
+              <Globe size={14} className="text-[#2E7D32]" /> {t('country')}
+            </label>
+            <select 
+              value={country}
+              onChange={(e) => setCountry(e.target.value)}
+              className="w-full h-11 px-4 border border-gray-200 dark:border-gray-700 rounded-lg text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 outline-none focus:border-[#2E7D32] focus:ring-1 focus:ring-[#2E7D32] cursor-pointer"
+            >
+              {COUNTRY_LIST.map((c) => (
+                <option key={c} value={c}>
+                  {c}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Username (Read Only info) */}
+          <div>
+            <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 uppercase mb-2 flex items-center gap-1.5">
+              <UserCheck size={14} className="text-[#2E7D32]" /> Username
+            </label>
+            <input 
+              type="text" 
+              value={username}
+              readOnly
+              className="w-full h-11 px-4 border border-gray-200 dark:border-gray-700 rounded-lg text-sm bg-gray-50 dark:bg-gray-800/60 text-gray-500 dark:text-gray-400 cursor-not-allowed font-mono"
+            />
+          </div>
+
+          {/* Bio */}
+          <div className="md:col-span-2">
+            <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 uppercase mb-2 flex items-center gap-1.5">
+              <FileText size={14} className="text-[#2E7D32]" /> {t('bio')}
+            </label>
+            <textarea 
+              value={bio}
+              onChange={(e) => setBio(e.target.value)}
+              placeholder={t('bioPlaceholder')}
+              rows={3}
+              className="w-full p-4 border border-gray-200 dark:border-gray-700 rounded-lg text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 outline-none focus:border-[#2E7D32] focus:ring-1 focus:ring-[#2E7D32] resize-none"
+            />
+          </div>
+        </div>
+      </Card>
+
+      {/* System Settings Card */}
       <Card className="p-6">
         <div className="flex items-center justify-between mb-8">
           <div>
@@ -252,7 +462,12 @@ export const SettingsModule = () => {
                   <label className="block text-xs font-bold text-gray-500 uppercase mb-2">{t('displayLanguage')}</label>
                   <select 
                     value={language}
-                    onChange={(e) => setLanguage(e.target.value)}
+                    onChange={(e) => {
+                      const newLang = e.target.value;
+                      setLanguage(newLang);
+                      localStorage.setItem('language_preference', newLang);
+                      window.dispatchEvent(new CustomEvent('watermelon-language-change', { detail: newLang }));
+                    }}
                     className="w-full px-4 py-2 border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-sm dark:text-gray-200 cursor-pointer"
                   >
                     <option value="en">English (US)</option>
@@ -267,6 +482,8 @@ export const SettingsModule = () => {
                       onClick={() => {
                         setTheme('light');
                         document.documentElement.classList.remove('dark');
+                        localStorage.setItem('theme_preference', 'light');
+                        window.dispatchEvent(new CustomEvent('watermelon-theme-change', { detail: 'light' }));
                       }}
                       className={`flex-1 h-11 flex items-center justify-center gap-2 rounded-lg border-2 transition-all ${
                         theme === 'light'
@@ -281,6 +498,8 @@ export const SettingsModule = () => {
                       onClick={() => {
                         setTheme('dark');
                         document.documentElement.classList.add('dark');
+                        localStorage.setItem('theme_preference', 'dark');
+                        window.dispatchEvent(new CustomEvent('watermelon-theme-change', { detail: 'dark' }));
                       }}
                       className={`flex-1 h-11 flex items-center justify-center gap-2 rounded-lg border-2 transition-all ${
                         theme === 'dark'
@@ -381,32 +600,17 @@ export const SettingsModule = () => {
               <h4 className="text-sm font-bold text-gray-900 dark:text-white flex items-center gap-2">
                 <Bell size={18} className="text-[#2E7D32]" /> {t('notifications')}
               </h4>
-              <div className="space-y-3 bg-gray-50 dark:bg-gray-800/50 p-4 rounded-xl border border-gray-100 dark:border-gray-700">
-                <label className="flex items-center justify-between group cursor-pointer">
-                  <span className="text-sm text-gray-700 dark:text-gray-300 font-medium">{t('diseaseDetectionAlerts')}</span>
+              <div className="bg-gray-50 dark:bg-gray-800/50 p-4 rounded-xl border border-gray-100 dark:border-gray-700">
+                <label className="flex items-start justify-between gap-4 group cursor-pointer">
+                  <div className="space-y-1">
+                    <span className="text-sm text-gray-900 dark:text-gray-200 font-bold block">{t('broadcastAlerts')}</span>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 leading-normal">{t('broadcastAlertsSub')}</p>
+                  </div>
                   <input 
                     type="checkbox" 
-                    className="w-4 h-4 rounded border-gray-300 dark:border-gray-600 text-[#2E7D32] focus:ring-[#2E7D32] bg-white dark:bg-gray-800 cursor-pointer" 
-                    checked={diseaseAlerts}
-                    onChange={(e) => setDiseaseAlerts(e.target.checked)}
-                  />
-                </label>
-                <label className="flex items-center justify-between group cursor-pointer">
-                  <span className="text-sm text-gray-700 dark:text-gray-300 font-medium">{t('weatherRiskWarnings')}</span>
-                  <input 
-                    type="checkbox" 
-                    className="w-4 h-4 rounded border-gray-300 dark:border-gray-600 text-[#2E7D32] focus:ring-[#2E7D32] bg-white dark:bg-gray-800 cursor-pointer" 
-                    checked={weatherWarnings}
-                    onChange={(e) => setWeatherWarnings(e.target.checked)}
-                  />
-                </label>
-                <label className="flex items-center justify-between group cursor-pointer">
-                  <span className="text-sm text-gray-700 dark:text-gray-300 font-medium">{t('systemStatusUpdates')}</span>
-                  <input 
-                    type="checkbox" 
-                    className="w-4 h-4 rounded border-gray-300 dark:border-gray-600 text-[#2E7D32] focus:ring-[#2E7D32] bg-white dark:bg-gray-800 cursor-pointer" 
-                    checked={systemUpdates}
-                    onChange={(e) => setSystemUpdates(e.target.checked)}
+                    className="w-5 h-5 rounded border-gray-300 dark:border-gray-600 text-[#2E7D32] focus:ring-[#2E7D32] bg-white dark:bg-gray-800 cursor-pointer flex-shrink-0 mt-0.5" 
+                    checked={broadcastAlerts}
+                    onChange={(e) => setBroadcastAlerts(e.target.checked)}
                   />
                 </label>
               </div>
@@ -503,11 +707,15 @@ export const SettingsModule = () => {
                     </form>
                   )}
                 </div>
-                <Button variant="outline" className="justify-start gap-2 h-14 py-0 px-4 border-gray-200 dark:border-gray-700 dark:bg-gray-800 dark:hover:bg-gray-700">
-                  <RefreshCw size={14} className="text-gray-400 flex-shrink-0" />
+                <Button 
+                  variant="outline" 
+                  onClick={() => setShowTermsModal(true)}
+                  className="justify-start gap-3 h-14 py-0 px-4 border-gray-200 dark:border-gray-700 dark:bg-gray-800 dark:hover:bg-gray-700 hover:border-[#2E7D32]/50 transition-all cursor-pointer"
+                >
+                  <FileText size={18} className="text-[#2E7D32] flex-shrink-0" />
                   <div className="text-left min-w-0">
-                    <p className="text-xs font-bold text-gray-900 dark:text-gray-100 truncate">{t('manageApiTokens')}</p>
-                    <p className="text-[10px] text-gray-500 dark:text-gray-400 truncate">{t('manageApiSub')}</p>
+                    <p className="text-xs font-bold text-gray-900 dark:text-gray-100 truncate">{t('termsConditions')}</p>
+                    <p className="text-[10px] text-gray-500 dark:text-gray-400 truncate">{t('termsConditionsSub')}</p>
                   </div>
                 </Button>
               </div>
@@ -577,6 +785,83 @@ export const SettingsModule = () => {
                 className="w-full h-12 border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 font-bold text-base"
               >
                 Cancel, keep my data
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Terms & Conditions Modal */}
+      {showTermsModal && (
+        <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white dark:bg-gray-800 rounded-3xl max-w-2xl w-full p-8 shadow-2xl border border-gray-100 dark:border-gray-700 flex flex-col max-h-[85vh] overflow-hidden animate-in zoom-in-95 duration-200">
+            {/* Header */}
+            <div className="flex items-center justify-between pb-4 border-b border-gray-100 dark:border-gray-700 mb-4 flex-shrink-0">
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 bg-green-100 dark:bg-green-900/30 text-[#2E7D32] dark:text-green-400 rounded-2xl">
+                  <FileText size={22} />
+                </div>
+                <div>
+                  <h2 className="text-lg font-black text-gray-900 dark:text-white">Platform Terms & Conditions</h2>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">WatermelonAI Agricultural Service Policies & Disclaimers</p>
+                </div>
+              </div>
+              <button 
+                onClick={() => setShowTermsModal(false)}
+                className="p-2 text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-xl transition-all"
+              >
+                <CloseIcon size={20} />
+              </button>
+            </div>
+
+            {/* Scrollable Content */}
+            <div className="flex-1 overflow-y-auto space-y-6 pr-2 text-gray-700 dark:text-gray-300 text-sm leading-relaxed">
+              <div className="space-y-2 bg-green-50/50 dark:bg-green-950/20 p-4 rounded-2xl border border-green-100 dark:border-green-900/30">
+                <div className="flex items-center gap-2 text-[#2E7D32] dark:text-green-400 font-bold text-xs uppercase tracking-wider">
+                  <CheckCircle2 size={16} /> Welcome to WatermelonAI
+                </div>
+                <p className="text-xs text-gray-600 dark:text-gray-300">
+                  By utilizing the WatermelonAI disease detection system, satellite vegetation monitoring, and regional communications hub, you agree to the terms outlined below.
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <h4 className="font-black text-gray-900 dark:text-white text-sm">1. Agricultural Advisory & Diagnostic Disclaimer</h4>
+                <p className="text-xs text-gray-600 dark:text-gray-400 leading-relaxed">
+                  All disease diagnosis results, probability scores, and treatment recommendations provided by the platform are algorithmic decision-support aids. While models are verified against standardized field datasets, on-ground confirmation with your regional Agricultural Extension Officer is recommended before administering broad-spectrum treatments.
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <h4 className="font-black text-gray-900 dark:text-white text-sm">2. Satellite Remote Sensing & GPS Coordinates</h4>
+                <p className="text-xs text-gray-600 dark:text-gray-400 leading-relaxed">
+                  Farm boundary polygons and GPS coordinates entered into the system are utilized solely to retrieve multispectral satellite data (NDVI, NDWI) and localized microclimate weather risk indices for your plots. Field coordinates are never publicly disclosed.
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <h4 className="font-black text-gray-900 dark:text-white text-sm">3. Communications & Expert Consultation Queue</h4>
+                <p className="text-xs text-gray-600 dark:text-gray-400 leading-relaxed">
+                  Conversations and consultation cases submitted to Agriculture Officers and Researchers are encrypted in transit and stored to ensure continuity of agricultural care. You retain the ability to delete conversation histories at any time from the Communications Hub.
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <h4 className="font-black text-gray-900 dark:text-white text-sm">4. Data Ownership, Retention & Privacy Controls</h4>
+                <p className="text-xs text-gray-600 dark:text-gray-400 leading-relaxed">
+                  Farmers retain complete ownership of their diagnostic images and farm data. You may customize your data retention window (30 Days, 6 Months, 1 Year, or Keep Forever) or permanently purge all diagnostic records using the Danger Zone in your settings at any time.
+                </p>
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="pt-4 border-t border-gray-100 dark:border-gray-700 mt-4 flex justify-between items-center flex-shrink-0">
+              <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">Version 2.4 • Updated September 2026</span>
+              <Button 
+                onClick={() => setShowTermsModal(false)}
+                className="bg-[#2E7D32] hover:bg-[#1B5E20] text-white font-bold px-6 rounded-xl"
+              >
+                I Understand
               </Button>
             </div>
           </div>

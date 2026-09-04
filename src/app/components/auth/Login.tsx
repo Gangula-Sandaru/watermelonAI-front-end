@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Mail, Lock, ArrowRight, ArrowLeft, Loader2, User, Eye, EyeOff } from 'lucide-react';
+import { Mail, Lock, ArrowRight, ArrowLeft, Loader2, User, Eye, EyeOff, ShieldAlert } from 'lucide-react';
 import { toast } from 'sonner';
 
 const WatermelonIcon = ({ className }: { className?: string }) => (
@@ -32,19 +32,20 @@ export function Login({ onLogin, onSwitchToRegister, onSwitchToForgotPassword, o
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [blockedInfo, setBlockedInfo] = useState<{ title: string; message: string; advice: string } | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!usernameOrEmail || !password) return;
     
     setIsLoading(true);
+    setBlockedInfo(null);
     try {
       const response = await fetch('http://127.0.0.1:8000/api/auth/login/', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
-           email: usernameOrEmail, 
-           username: usernameOrEmail, // Matches username or email for flexibility
+           username: usernameOrEmail, 
            password: password 
         })
       });
@@ -56,7 +57,36 @@ export function Login({ onLogin, onSwitchToRegister, onSwitchToForgotPassword, o
         toast.success('Successfully logged in');
         onLogin();
       } else {
-        toast.error(data.detail || data.error || 'Invalid credentials');
+        const errorDetail = typeof data.detail === 'string' ? data.detail : (data.detail?.detail || data.error || '');
+        const isBlocked = data.is_blocked || (data.detail && typeof data.detail === 'object' && data.detail.is_blocked) || errorDetail.toLowerCase().includes('block');
+        
+        if (isBlocked) {
+          const role = (data.role || (data.detail && typeof data.detail === 'object' && data.detail.role) || '').toLowerCase();
+          const detailLower = errorDetail.toLowerCase();
+
+          let title = "Account Blocked";
+          let message = errorDetail || "Your account has been blocked by the administrator. Access to the system is revoked.";
+          let advice = "Please contact the system administrator to request account review and reactivation.";
+
+          if (role === 'farmer' || detailLower.includes('farmer')) {
+            title = "Farmer Account Blocked";
+            message = errorDetail || "Your farmer portal access and disease diagnosis features have been suspended by the administrator.";
+            advice = "Please contact your local Agricultural Extension Officer or the System Administrator to restore your farm account access.";
+          } else if (role.includes('officer') || detailLower.includes('officer')) {
+            title = "Agriculture Officer Account Blocked";
+            message = errorDetail || "Your official extension and field advisory credentials have been suspended by the system administrator.";
+            advice = "Please contact your Provincial Agricultural Department or the System Administrator to reactivate your officer credentials.";
+          } else if (role === 'researcher' || detailLower.includes('researcher')) {
+            title = "Researcher Account Blocked";
+            message = errorDetail || "Your research analytics access and AI diagnostic laboratory tools have been suspended by the administrator.";
+            advice = "Please contact the Agricultural Research Division Administration to reinstate your research credentials.";
+          }
+
+          setBlockedInfo({ title, message, advice });
+          toast.error(`${title}: Access revoked.`, { duration: 7000 });
+        } else {
+          toast.error(errorDetail || 'Invalid credentials');
+        }
       }
     } catch (err) {
       toast.error('Network error. Ensure Django server is running.');
@@ -101,6 +131,21 @@ export function Login({ onLogin, onSwitchToRegister, onSwitchToForgotPassword, o
           </div>
           <h2 className="text-3xl font-extrabold text-center text-gray-900 mb-2 tracking-tight">Welcome Back</h2>
           <p className="text-center text-gray-500 font-medium mb-8">Sign in to your intelligent dashboard</p>
+
+          {blockedInfo && (
+            <div className="mb-6 p-4 rounded-2xl bg-red-50 border-2 border-red-200 text-red-800 text-left animate-in fade-in slide-in-from-top-2 space-y-2">
+              <div className="flex items-center gap-2 font-bold text-sm text-red-700">
+                <ShieldAlert className="w-5 h-5 text-red-600 flex-shrink-0" />
+                <span>{blockedInfo.title}</span>
+              </div>
+              <p className="text-xs leading-relaxed text-red-700/90 font-medium">
+                {blockedInfo.message}
+              </p>
+              <div className="text-[11px] font-semibold text-red-700 bg-red-100/70 px-2.5 py-1.5 rounded-lg border border-red-200">
+                {blockedInfo.advice}
+              </div>
+            </div>
+          )}
 
           <form onSubmit={handleSubmit} className="space-y-5">
             <div>

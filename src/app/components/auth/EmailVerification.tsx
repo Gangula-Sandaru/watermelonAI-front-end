@@ -28,7 +28,10 @@ export function EmailVerification({ onSuccess }: EmailVerificationProps) {
   const [status, setStatus] = useState<'verifying' | 'success' | 'error' | 'idle'>('idle');
   const [message, setMessage] = useState('');
   const [token, setToken] = useState('');
-  
+  const [code, setCode] = useState('');
+  // 'code' = user types the 6-digit OTP from email; 'token' = user pastes the UUID link token
+  const [inputMode, setInputMode] = useState<'code' | 'token'>('code');
+
   const [resendMode, setResendMode] = useState(false);
   const [resendEmail, setResendEmail] = useState('');
   const [resendTimer, setResendTimer] = useState(0);
@@ -47,7 +50,7 @@ export function EmailVerification({ onSuccess }: EmailVerificationProps) {
       setResendEmail(emailParam);
       setResendMode(true);
       triggerResend(emailParam);
-      
+
       // Clean up URL so it doesn't re-trigger on refresh
       const newUrl = window.location.pathname;
       window.history.replaceState({}, document.title, newUrl);
@@ -74,7 +77,7 @@ export function EmailVerification({ onSuccess }: EmailVerificationProps) {
         body: JSON.stringify({ token: verificationToken })
       });
       const data = await response.json();
-      
+
       if (response.ok) {
         setStatus('success');
         setMessage(data.message || 'Your email has been verified successfully!');
@@ -91,16 +94,44 @@ export function EmailVerification({ onSuccess }: EmailVerificationProps) {
     }
   };
 
+  const verifyCode = async (verificationCode: string) => {
+    setStatus('verifying');
+    try {
+      const response = await fetch('http://127.0.0.1:8000/api/email/verify-email/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code: verificationCode })
+      });
+      const data = await response.json();
+
+      if (response.ok) {
+        setStatus('success');
+        setMessage(data.message || 'Your email has been verified successfully!');
+        toast.success('Email verified successfully');
+      } else {
+        setStatus('error');
+        setMessage(data.error || 'Verification code is invalid or has expired.');
+        toast.error('Verification failed');
+      }
+    } catch (err) {
+      setStatus('error');
+      setMessage('Network error. Ensure the Django server is running.');
+      toast.error('Network error');
+    }
+  };
+
   const handleManualSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (token) {
-      verifyToken(token);
+    if (inputMode === 'code' && code.trim()) {
+      verifyCode(code.trim());
+    } else if (inputMode === 'token' && token.trim()) {
+      verifyToken(token.trim());
     }
   };
 
   const triggerResend = async (emailToResend: string) => {
     if (resendTimer > 0) return;
-    
+
     setIsResending(true);
     try {
       const response = await fetch('http://127.0.0.1:8000/api/email/request-verification/', {
@@ -108,9 +139,9 @@ export function EmailVerification({ onSuccess }: EmailVerificationProps) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: emailToResend })
       });
-      
+
       const data = await response.json();
-      
+
       if (response.ok) {
         toast.success(data.message || 'Verification email sent!');
         setResendTimer(60);
@@ -194,7 +225,7 @@ export function EmailVerification({ onSuccess }: EmailVerificationProps) {
                   onClick={() => setStatus('idle')}
                   className="w-full font-bold text-gray-600 hover:text-gray-900 transition-colors"
                 >
-                  Try entering token manually
+                  Try entering code manually
                 </button>
                 <button
                   onClick={() => {
@@ -211,41 +242,83 @@ export function EmailVerification({ onSuccess }: EmailVerificationProps) {
 
           {status === 'idle' && !resendMode && (
             <>
-              <p className="text-gray-500 font-medium mb-8">
-                Please enter the verification token sent to your email address.
+              <p className="text-gray-500 font-medium mb-5">
+                Enter the 6-digit code from your email, or paste the link token.
               </p>
+
+              {/* Mode toggle tabs */}
+              <div className="flex bg-gray-100 rounded-2xl p-1 mb-6">
+                <button
+                  type="button"
+                  onClick={() => setInputMode('code')}
+                  className={`flex-1 py-2 rounded-xl text-sm font-bold transition-all ${
+                    inputMode === 'code'
+                      ? 'bg-white text-[#2E7D32] shadow-sm'
+                      : 'text-gray-500 hover:text-gray-700'
+                  }`}
+                >
+                  6-Digit Code
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setInputMode('token')}
+                  className={`flex-1 py-2 rounded-xl text-sm font-bold transition-all ${
+                    inputMode === 'token'
+                      ? 'bg-white text-[#2E7D32] shadow-sm'
+                      : 'text-gray-500 hover:text-gray-700'
+                  }`}
+                >
+                  Link Token
+                </button>
+              </div>
+
               <form onSubmit={handleManualSubmit} className="space-y-5">
                 <div>
                   <div className="relative group text-left">
                     <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-gray-400 group-focus-within:text-green-600 transition-colors">
                       <Mail className="h-5 w-5" />
                     </div>
-                    <input
-                      type="text"
-                      className="pl-11 w-full px-4 py-3.5 bg-gray-50/50 border-2 border-gray-100 rounded-2xl focus:ring-0 focus:bg-white focus:border-green-500 outline-none transition-all font-medium text-gray-900 shadow-sm"
-                      placeholder="Enter your verification token"
-                      value={token}
-                      onChange={(e) => setToken(e.target.value)}
-                      required
-                    />
+                    {inputMode === 'code' ? (
+                      <input
+                        key="code-input"
+                        type="text"
+                        inputMode="numeric"
+                        maxLength={6}
+                        className="pl-11 w-full px-4 py-3.5 bg-gray-50/50 border-2 border-gray-100 rounded-2xl focus:ring-0 focus:bg-white focus:border-green-500 outline-none transition-all font-mono text-xl tracking-[0.5em] text-center text-gray-900 shadow-sm"
+                        placeholder="• • • • • •"
+                        value={code}
+                        onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                        required
+                      />
+                    ) : (
+                      <input
+                        key="token-input"
+                        type="text"
+                        className="pl-11 w-full px-4 py-3.5 bg-gray-50/50 border-2 border-gray-100 rounded-2xl focus:ring-0 focus:bg-white focus:border-green-500 outline-none transition-all font-medium text-gray-900 shadow-sm"
+                        placeholder="Paste your verification token"
+                        value={token}
+                        onChange={(e) => setToken(e.target.value)}
+                        required
+                      />
+                    )}
                   </div>
                 </div>
 
                 <button
                   type="submit"
-                  disabled={!token}
+                  disabled={inputMode === 'code' ? code.length !== 6 : !token.trim()}
                   className="w-full flex items-center justify-center gap-2 px-6 py-4 mt-8 bg-gradient-to-r from-[#2E7D32] to-green-600 text-white rounded-2xl hover:from-[#1B5E20] hover:to-green-700 transition-all font-bold shadow-lg shadow-green-900/20 hover:shadow-xl hover:shadow-green-900/30 hover:-translate-y-0.5 disabled:opacity-70 disabled:pointer-events-none"
                 >
                   Verify Email <ArrowRight className="w-5 h-5" />
                 </button>
-                
+
                 <div className="mt-4 pt-4 border-t border-gray-100 flex flex-col gap-3">
                   {resendTimer > 0 ? (
                     <p className="text-sm font-bold text-gray-500">
                       Resend available in {resendTimer}s
                     </p>
                   ) : (
-                    <button 
+                    <button
                       type="button"
                       onClick={() => setResendMode(true)}
                       className="text-sm font-bold text-[#2E7D32] hover:text-[#1B5E20] transition-colors"
@@ -253,7 +326,7 @@ export function EmailVerification({ onSuccess }: EmailVerificationProps) {
                       Didn't receive the email? Resend
                     </button>
                   )}
-                  <button 
+                  <button
                     type="button"
                     onClick={onSuccess}
                     className="text-sm font-bold text-gray-500 hover:text-gray-800 transition-colors"
