@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Card } from './ui/card';
 import { Button } from './ui/button';
-import { Settings, Globe, Bell, MapPin, Database, Shield, Trash2, Save, RefreshCw, Lock, Loader2, Search, Maximize2, Maximize, Minimize, X as CloseIcon, FileText, CheckCircle2, User, Mail, UserCheck } from 'lucide-react';
+import { Settings, Globe, Bell, MapPin, Database, Shield, Trash2, Save, RefreshCw, Lock, Loader2, Search, Maximize2, Maximize, Minimize, X as CloseIcon, FileText, CheckCircle2, User, Mail, UserCheck, Sun, Moon } from 'lucide-react';
 import { toast } from 'sonner';
 import { MapContainer, TileLayer, Marker, useMap, useMapEvents } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
@@ -81,18 +81,34 @@ const COUNTRY_LIST = [
   "Vietnam"
 ];
 
-export const SettingsModule = () => {
+interface SettingsModuleProps {
+  userData?: {
+    username?: string;
+    email?: string;
+    role?: string;
+    is_superuser?: boolean;
+    display_name?: string;
+  } | null;
+}
+
+export const SettingsModule: React.FC<SettingsModuleProps> = ({ userData }) => {
   const { t } = useTranslation();
   const [isSaving, setIsSaving] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   
   // Profile states
-  const [displayName, setDisplayName] = useState('');
-  const [email, setEmail] = useState('');
+  const [displayName, setDisplayName] = useState(userData?.display_name || '');
+  const [email, setEmail] = useState(userData?.email || '');
   const [country, setCountry] = useState('Sri Lanka');
   const [bio, setBio] = useState('');
-  const [username, setUsername] = useState('');
-  const [userRole, setUserRole] = useState('farmer');
+  const [username, setUsername] = useState(userData?.username || '');
+  const [isSuperuser, setIsSuperuser] = useState<boolean>(() => {
+    return Boolean(userData?.is_superuser || userData?.role?.toLowerCase() === 'superadmin');
+  });
+  const [userRole, setUserRole] = useState<string>(() => {
+    if (userData?.is_superuser || userData?.role?.toLowerCase() === 'superadmin') return 'superadmin';
+    return userData?.role || 'farmer';
+  });
 
   const [dataRetention, setDataRetention] = useState('6months');
   const [location, setLocation] = useState<[number, number]>([7.8731, 80.7718]);
@@ -110,9 +126,34 @@ export const SettingsModule = () => {
   const [broadcastAlerts, setBroadcastAlerts] = useState(true);
   const [anonymousSharing, setAnonymousSharing] = useState(true);
   const [language, setLanguage] = useState('en');
-  const [theme, setTheme] = useState<'light' | 'dark'>('light');
+  const [theme, setTheme] = useState<'light' | 'dark'>(() => {
+    return (localStorage.getItem('theme_preference') as 'light' | 'dark') || 'light';
+  });
 
   const API_BASE = "http://127.0.0.1:8000/api/settings/";
+
+  const applyTheme = (newTheme: 'light' | 'dark', enableTransition = false) => {
+    if (enableTransition) {
+      document.documentElement.classList.add('theme-transition');
+    }
+    setTheme(newTheme);
+    localStorage.setItem('theme_preference', newTheme);
+    if (newTheme === 'dark') {
+      document.documentElement.classList.add('dark');
+      document.documentElement.style.colorScheme = 'dark';
+      document.documentElement.style.backgroundColor = '#111827';
+    } else {
+      document.documentElement.classList.remove('dark');
+      document.documentElement.style.colorScheme = 'light';
+      document.documentElement.style.backgroundColor = '#ffffff';
+    }
+    window.dispatchEvent(new CustomEvent('watermelon-theme-change', { detail: newTheme }));
+    if (enableTransition) {
+      setTimeout(() => {
+        document.documentElement.classList.remove('theme-transition');
+      }, 350);
+    }
+  };
 
   useEffect(() => {
     const fetchSettingsAndProfile = async () => {
@@ -141,16 +182,11 @@ export const SettingsModule = () => {
           setAnonymousSharing(data.anonymous_data_sharing);
           
           setLanguage(data.language || 'en');
-          setTheme(data.theme_preference || 'light');
+          const resolvedTheme = (data.theme_preference || localStorage.getItem('theme_preference') || 'light') as 'light' | 'dark';
+          applyTheme(resolvedTheme);
 
           localStorage.setItem('language_preference', data.language || 'en');
           window.dispatchEvent(new CustomEvent('watermelon-language-change', { detail: data.language || 'en' }));
-          
-          if (data.theme_preference === 'dark') {
-            document.documentElement.classList.add('dark');
-          } else {
-            document.documentElement.classList.remove('dark');
-          }
         }
 
         if (profileRes.ok) {
@@ -160,7 +196,18 @@ export const SettingsModule = () => {
           setCountry(prof.country || 'Sri Lanka');
           setBio(prof.bio || '');
           setUsername(prof.username || '');
-          setUserRole(prof.role || 'farmer');
+          
+          if (!settingsRes.ok && prof.theme_preference) {
+            applyTheme(prof.theme_preference as 'light' | 'dark');
+          }
+
+          const isSuper = Boolean(prof.is_superuser || prof.role?.toLowerCase() === 'superadmin');
+          setIsSuperuser(isSuper);
+          if (isSuper) {
+            setUserRole('superadmin');
+          } else {
+            setUserRole(prof.role || 'farmer');
+          }
         }
       } catch (err) {
         console.error("Failed to fetch settings", err);
@@ -169,6 +216,44 @@ export const SettingsModule = () => {
       }
     };
     fetchSettingsAndProfile();
+  }, []);
+
+  // Synchronize state when userData prop changes from parent
+  useEffect(() => {
+    if (userData) {
+      if (userData.display_name !== undefined) setDisplayName(userData.display_name || userData.username || '');
+      if (userData.email !== undefined) setEmail(userData.email || '');
+      if (userData.username !== undefined) setUsername(userData.username || '');
+      if (userData.country !== undefined) setCountry(userData.country || 'Sri Lanka');
+      if (userData.theme_preference && (userData.theme_preference === 'light' || userData.theme_preference === 'dark')) {
+        setTheme(userData.theme_preference);
+        if (userData.theme_preference === 'dark') {
+          document.documentElement.classList.add('dark');
+        } else {
+          document.documentElement.classList.remove('dark');
+        }
+      }
+      if (userData.is_superuser !== undefined || userData.role) {
+        const isSuper = Boolean(userData.is_superuser || userData.role?.toLowerCase() === 'superadmin');
+        setIsSuperuser(isSuper);
+        setUserRole(isSuper ? 'superadmin' : (userData.role || 'farmer'));
+      }
+    }
+  }, [userData]);
+
+  // Global listener for theme changes across modules
+  useEffect(() => {
+    const onThemeChange = (e: any) => {
+      const newTheme = (e.detail || localStorage.getItem('theme_preference') || 'light') as 'light' | 'dark';
+      setTheme(newTheme);
+      if (newTheme === 'dark') {
+        document.documentElement.classList.add('dark');
+      } else {
+        document.documentElement.classList.remove('dark');
+      }
+    };
+    window.addEventListener('watermelon-theme-change', onThemeChange);
+    return () => window.removeEventListener('watermelon-theme-change', onThemeChange);
   }, []);
 
   const handleSave = async () => {
@@ -195,15 +280,14 @@ export const SettingsModule = () => {
         theme_preference: theme
       };
 
-      const profilePayload: Record<string, string> = {
-        display_name: displayName,
-        country: country,
-        bio: bio
+      // Profile fields (email and username are permanently locked as account identifiers)
+      const profilePayload: Record<string, string | null> = {
+        display_name: displayName.trim() || null,
+        country: country || 'Sri Lanka',
+        bio: bio.trim() || null,
+        theme_preference: theme,
+        language: selectedLangCode
       };
-      // Only include email if non-empty — Django's EmailField rejects blank strings
-      if (email.trim()) {
-        profilePayload.email = email.trim();
-      }
 
       const [settingsRes, profileRes] = await Promise.allSettled([
         fetch(API_BASE, { method: 'PATCH', headers, body: JSON.stringify(settingsPayload) }),
@@ -230,21 +314,52 @@ export const SettingsModule = () => {
       if (!profileOk) {
         const body = await profileResult?.text().catch(() => '');
         console.error(`Profile API failed [${profileResult?.status}]:`, body);
+        let errMsg = 'Profile update failed';
+        try {
+          const errObj = JSON.parse(body || '{}');
+          const firstKey = Object.keys(errObj)[0];
+          if (firstKey) {
+            const detail = Array.isArray(errObj[firstKey]) ? errObj[firstKey][0] : errObj[firstKey];
+            errMsg = `Profile error (${firstKey}): ${detail}`;
+          }
+        } catch { /* ignore parse error */ }
+        toast.error(settingsOk ? `${errMsg}. System settings were saved.` : errMsg);
+        return;
       }
       if (settingsRes.status === 'rejected') console.error('Settings fetch threw:', settingsRes.reason);
       if (profileRes.status === 'rejected') console.error('Profile fetch threw:', profileRes.reason);
 
       if (settingsOk || profileOk) {
         // At least one succeeded — apply local state updates
+        applyTheme(theme);
+
         if (settingsOk) {
           localStorage.setItem('default_latitude', String(location[0]));
           localStorage.setItem('default_longitude', String(location[1]));
-          localStorage.setItem('theme_preference', theme);
           localStorage.setItem('language_preference', selectedLangCode);
           localStorage.setItem('broadcast_alerts', String(broadcastAlerts));
           window.dispatchEvent(new CustomEvent('watermelon-language-change', { detail: selectedLangCode }));
           window.dispatchEvent(new CustomEvent('watermelon-new-scan'));
           window.dispatchEvent(new CustomEvent('watermelon-scans-updated'));
+        }
+
+        // Re-fetch profile from server to confirm what was actually persisted
+        if (profileOk) {
+          try {
+            const confirmRes = await fetch('http://127.0.0.1:8000/api/auth/profile/', {
+              headers: { 'Authorization': `Bearer ${token}` }
+            });
+            if (confirmRes.ok) {
+              const confirmed = await confirmRes.json();
+              setDisplayName(confirmed.display_name || '');
+              setEmail(confirmed.email || '');
+              setCountry(confirmed.country || 'Sri Lanka');
+              setBio(confirmed.bio || '');
+              setUsername(confirmed.username || '');
+              confirmed.theme_preference = theme;
+              window.dispatchEvent(new CustomEvent('watermelon-profile-updated', { detail: confirmed }));
+            }
+          } catch { /* best-effort re-fetch — non-critical */ }
         }
 
         if (settingsOk && profileOk) {
@@ -347,15 +462,41 @@ export const SettingsModule = () => {
       <Card className="p-6">
         <div className="flex items-center justify-between mb-6 pb-4 border-b border-gray-100 dark:border-gray-800">
           <div className="flex items-center gap-4">
-            <div className="w-14 h-14 rounded-2xl bg-green-100 dark:bg-green-900/30 text-[#2E7D32] dark:text-green-400 flex items-center justify-center font-black text-xl shadow-inner">
+            <div className={`w-14 h-14 rounded-2xl flex items-center justify-center font-black text-xl shadow-inner ${
+              isSuperuser || userRole === 'superadmin'
+                ? 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 border border-amber-300/50'
+                : userRole === 'admin'
+                ? 'bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400 border border-purple-300/50'
+                : 'bg-green-100 dark:bg-green-900/30 text-[#2E7D32] dark:text-green-400'
+            }`}>
               {displayName ? displayName.substring(0, 2).toUpperCase() : (username ? username.substring(0, 2).toUpperCase() : 'US')}
             </div>
             <div>
               <div className="flex items-center gap-2">
                 <h3 className="font-black text-gray-900 dark:text-white text-lg">{displayName || username || 'User Profile'}</h3>
-                <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-md bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-400">
-                  {userRole === 'agri_officer' ? 'Agri Officer' : userRole === 'researcher' ? 'Researcher' : userRole === 'admin' ? 'Administrator' : 'Farmer'}
-                </span>
+                {isSuperuser || userRole === 'superadmin' ? (
+                  <span className="text-[10px] font-black uppercase tracking-wider px-2.5 py-0.5 rounded-md bg-amber-500/15 text-amber-800 dark:text-amber-300 border border-amber-500/30 flex items-center gap-1 shadow-sm">
+                    <Shield className="w-3 h-3 text-amber-600 dark:text-amber-400" />
+                    Super Admin
+                  </span>
+                ) : userRole === 'admin' ? (
+                  <span className="text-[10px] font-black uppercase tracking-wider px-2.5 py-0.5 rounded-md bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-400 flex items-center gap-1 border border-purple-300/40 shadow-sm">
+                    <Shield className="w-3 h-3 text-purple-600 dark:text-purple-400" />
+                    Administrator
+                  </span>
+                ) : userRole === 'agri_officer' || userRole === 'officer' ? (
+                  <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-md bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-400 border border-blue-300/30">
+                    Agri Officer
+                  </span>
+                ) : userRole === 'researcher' ? (
+                  <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-md bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-400 border border-indigo-300/30">
+                    Researcher
+                  </span>
+                ) : (
+                  <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-md bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-400">
+                    Farmer
+                  </span>
+                )}
               </div>
               <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{t('accountSettingsSub')}</p>
             </div>
@@ -378,18 +519,27 @@ export const SettingsModule = () => {
             />
           </div>
 
-          {/* Registered Email */}
+          {/* Registered Email (Locked) */}
           <div>
-            <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 uppercase mb-2 flex items-center gap-1.5">
-              <Mail size={14} className="text-[#2E7D32]" /> {t('registeredEmail')}
-            </label>
-            <input 
-              type="email" 
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="farmer@watermelon.ai"
-              className="w-full h-11 px-4 border border-gray-200 dark:border-gray-700 rounded-lg text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 outline-none focus:border-[#2E7D32] focus:ring-1 focus:ring-[#2E7D32]"
-            />
+            <div className="flex items-center justify-between mb-2">
+              <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 uppercase flex items-center gap-1.5">
+                <Mail size={14} className="text-[#2E7D32]" /> {t('registeredEmail')}
+              </label>
+              <span className="text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider flex items-center gap-1 bg-gray-100 dark:bg-gray-800 px-2 py-0.5 rounded">
+                <Lock size={10} /> {t('fieldLocked')}
+              </span>
+            </div>
+            <div className="relative">
+              <input 
+                type="email" 
+                value={email}
+                readOnly
+                disabled
+                placeholder={isSuperuser || userRole === 'superadmin' ? "superadmin@watermelon.ai" : userRole === 'admin' ? "admin@watermelon.ai" : "farmer@watermelon.ai"}
+                className="w-full h-11 pl-4 pr-10 border border-gray-200 dark:border-gray-700 rounded-lg text-sm bg-gray-100/80 dark:bg-gray-800/60 text-gray-500 dark:text-gray-400 cursor-not-allowed outline-none select-none font-medium"
+              />
+              <Lock size={15} className="absolute right-3.5 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-500 pointer-events-none" />
+            </div>
           </div>
 
           {/* Country */}
@@ -402,6 +552,11 @@ export const SettingsModule = () => {
               onChange={(e) => setCountry(e.target.value)}
               className="w-full h-11 px-4 border border-gray-200 dark:border-gray-700 rounded-lg text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 outline-none focus:border-[#2E7D32] focus:ring-1 focus:ring-[#2E7D32] cursor-pointer"
             >
+              {!COUNTRY_LIST.includes(country) && country && (
+                <option key={country} value={country}>
+                  {country}
+                </option>
+              )}
               {COUNTRY_LIST.map((c) => (
                 <option key={c} value={c}>
                   {c}
@@ -410,17 +565,27 @@ export const SettingsModule = () => {
             </select>
           </div>
 
-          {/* Username (Read Only info) */}
+          {/* Username (Locked) */}
           <div>
-            <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 uppercase mb-2 flex items-center gap-1.5">
-              <UserCheck size={14} className="text-[#2E7D32]" /> Username
-            </label>
-            <input 
-              type="text" 
-              value={username}
-              readOnly
-              className="w-full h-11 px-4 border border-gray-200 dark:border-gray-700 rounded-lg text-sm bg-gray-50 dark:bg-gray-800/60 text-gray-500 dark:text-gray-400 cursor-not-allowed font-mono"
-            />
+            <div className="flex items-center justify-between mb-2">
+              <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 uppercase flex items-center gap-1.5">
+                <UserCheck size={14} className="text-[#2E7D32]" /> {t('username')}
+              </label>
+              <span className="text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider flex items-center gap-1 bg-gray-100 dark:bg-gray-800 px-2 py-0.5 rounded">
+                <Lock size={10} /> {t('fieldLocked')}
+              </span>
+            </div>
+            <div className="relative">
+              <input 
+                type="text" 
+                value={username}
+                readOnly
+                disabled
+                placeholder={t('usernamePlaceholder')}
+                className="w-full h-11 pl-4 pr-10 border border-gray-200 dark:border-gray-700 rounded-lg text-sm bg-gray-100/80 dark:bg-gray-800/60 text-gray-500 dark:text-gray-400 cursor-not-allowed outline-none select-none font-mono"
+              />
+              <Lock size={15} className="absolute right-3.5 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-500 pointer-events-none" />
+            </div>
           </div>
 
           {/* Bio */}
@@ -476,39 +641,49 @@ export const SettingsModule = () => {
                   </select>
                 </div>
                 <div>
-                  <label className="block text-xs font-bold text-gray-500 uppercase mb-2">{t('displayTheme')}</label>
+                  <label className="block text-xs font-bold text-gray-500 dark:text-gray-400 uppercase mb-2">{t('displayTheme')}</label>
                   <div className="flex gap-3">
                     <button
-                      onClick={() => {
-                        setTheme('light');
-                        document.documentElement.classList.remove('dark');
-                        localStorage.setItem('theme_preference', 'light');
-                        window.dispatchEvent(new CustomEvent('watermelon-theme-change', { detail: 'light' }));
-                      }}
-                      className={`flex-1 h-11 flex items-center justify-center gap-2 rounded-lg border-2 transition-all ${
+                      type="button"
+                      onClick={() => applyTheme('light', true)}
+                      className={`flex-1 h-12 flex items-center justify-between px-4 rounded-xl border-2 transition-all cursor-pointer ${
                         theme === 'light'
-                          ? 'border-[#2E7D32] bg-green-50 dark:bg-[#2E7D32]/10 text-[#2E7D32]'
-                          : 'border-gray-100 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-500 dark:text-gray-400 hover:border-gray-200 dark:hover:border-gray-600'
+                          ? 'border-[#2E7D32] bg-green-50/80 dark:bg-[#2E7D32]/20 text-[#2E7D32] dark:text-green-400 shadow-sm'
+                          : 'border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:border-gray-300 dark:hover:border-gray-600'
                       }`}
                     >
-                      <div className="w-4 h-4 rounded-full bg-white border-2 border-gray-200 shadow-sm flex-shrink-0"></div>
-                      <span className="text-xs font-bold truncate">{t('lightMode')}</span>
+                      <div className="flex items-center gap-2.5">
+                        <Sun size={18} className={theme === 'light' ? 'text-[#2E7D32] dark:text-green-400' : 'text-amber-500'} />
+                        <span className="text-xs font-bold">{t('lightMode')}</span>
+                      </div>
+                      <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${
+                        theme === 'light'
+                          ? 'border-[#2E7D32] dark:border-green-400 bg-white dark:bg-gray-900'
+                          : 'border-gray-300 dark:border-gray-600'
+                      }`}>
+                        {theme === 'light' && <div className="w-2 h-2 rounded-full bg-[#2E7D32] dark:bg-green-400" />}
+                      </div>
                     </button>
                     <button
-                      onClick={() => {
-                        setTheme('dark');
-                        document.documentElement.classList.add('dark');
-                        localStorage.setItem('theme_preference', 'dark');
-                        window.dispatchEvent(new CustomEvent('watermelon-theme-change', { detail: 'dark' }));
-                      }}
-                      className={`flex-1 h-11 flex items-center justify-center gap-2 rounded-lg border-2 transition-all ${
+                      type="button"
+                      onClick={() => applyTheme('dark', true)}
+                      className={`flex-1 h-12 flex items-center justify-between px-4 rounded-xl border-2 transition-all cursor-pointer ${
                         theme === 'dark'
-                          ? 'border-[#2E7D32] bg-green-50 dark:bg-[#2E7D32]/10 text-[#2E7D32]'
-                          : 'border-gray-100 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-500 dark:text-gray-400 hover:border-gray-200 dark:hover:border-gray-600'
+                          ? 'border-[#2E7D32] bg-green-50/80 dark:bg-[#2E7D32]/20 text-[#2E7D32] dark:text-green-400 shadow-sm'
+                          : 'border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:border-gray-300 dark:hover:border-gray-600'
                       }`}
                     >
-                      <div className="w-4 h-4 rounded-full bg-gray-900 shadow-sm flex-shrink-0"></div>
-                      <span className="text-xs font-bold truncate">{t('darkMode')}</span>
+                      <div className="flex items-center gap-2.5">
+                        <Moon size={18} className={theme === 'dark' ? 'text-[#2E7D32] dark:text-green-400' : 'text-indigo-400'} />
+                        <span className="text-xs font-bold">{t('darkMode')}</span>
+                      </div>
+                      <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${
+                        theme === 'dark'
+                          ? 'border-[#2E7D32] dark:border-green-400 bg-white dark:bg-gray-900'
+                          : 'border-gray-300 dark:border-gray-600'
+                      }`}>
+                        {theme === 'dark' && <div className="w-2 h-2 rounded-full bg-[#2E7D32] dark:bg-green-400" />}
+                      </div>
                     </button>
                   </div>
                 </div>

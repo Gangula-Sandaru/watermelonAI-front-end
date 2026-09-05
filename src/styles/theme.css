@@ -1,4 +1,4 @@
-@custom-variant dark (&:is(.dark *));
+@custom-variant dark (&:where(.dark, .dark *));
 
 :root {
   --font-size: 16px;
@@ -126,12 +126,15 @@
 
   body {
     @apply bg-background text-foreground;
-    transition: background-color 0.4s cubic-bezier(0.4, 0, 0.2, 1), color 0.4s cubic-bezier(0.4, 0, 0.2, 1);
   }
 
-  /* Smooth transition for all major containers */
-  main, aside, header, .card, div {
-    transition: background-color 0.4s cubic-bezier(0.4, 0, 0.2, 1), border-color 0.4s cubic-bezier(0.4, 0, 0.2, 1), color 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  /* Smooth transition only when user triggers a theme change */
+  html.theme-transition body,
+  html.theme-transition main,
+  html.theme-transition aside,
+  html.theme-transition header,
+  html.theme-transition [data-slot="card"] {
+    transition: background-color 0.3s cubic-bezier(0.4, 0, 0.2, 1), border-color 0.3s cubic-bezier(0.4, 0, 0.2, 1), color 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
   }
 
   /**

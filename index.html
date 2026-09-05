@@ -5,22 +5,51 @@
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>watermelonapp</title>
+    <style>
+      html.dark {
+        background-color: #111827 !important;
+        color-scheme: dark;
+      }
+      html.dark body {
+        background-color: #111827 !important;
+        color: #f3f4f6;
+      }
+      html:not(.dark) {
+        background-color: #ffffff;
+        color-scheme: light;
+      }
+      html:not(.dark) body {
+        background-color: #ffffff;
+        color: #111827;
+      }
+    </style>
     <script>
       (function() {
-        const path = window.location.pathname;
-        const isAuthPage = ['/login', '/register', '/forgot-password', '/reset-password', '/verify-email'].includes(path) || path === '/';
-        
-        if (isAuthPage) {
-          document.documentElement.classList.remove('dark');
-          return;
-        }
+        try {
+          const token = localStorage.getItem('access_token') || localStorage.getItem('token');
+          const path = window.location.pathname;
+          const isAuthOnlyPath = ['/login', '/register', '/forgot-password', '/reset-password', '/verify-email'].includes(path);
+          
+          // Only force light theme if unauthenticated or explicitly on an auth page
+          if (!token && (isAuthOnlyPath || path === '/')) {
+            document.documentElement.classList.remove('dark');
+            document.documentElement.style.colorScheme = 'light';
+            document.documentElement.style.backgroundColor = '#ffffff';
+            return;
+          }
 
-        const theme = localStorage.getItem('theme_preference') || 'light';
-        if (theme === 'dark') {
-          document.documentElement.classList.add('dark');
-        } else {
-          document.documentElement.classList.remove('dark');
-        }
+          // Apply saved theme immediately before any React components render
+          const theme = localStorage.getItem('theme_preference') || 'light';
+          if (theme === 'dark') {
+            document.documentElement.classList.add('dark');
+            document.documentElement.style.colorScheme = 'dark';
+            document.documentElement.style.backgroundColor = '#111827';
+          } else {
+            document.documentElement.classList.remove('dark');
+            document.documentElement.style.colorScheme = 'light';
+            document.documentElement.style.backgroundColor = '#ffffff';
+          }
+        } catch(e) {}
       })();
     </script>
   </head>

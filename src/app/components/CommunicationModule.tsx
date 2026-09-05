@@ -6,7 +6,7 @@ import { toast } from 'sonner';
 import { useTranslation } from '../utils/translations';
 
 interface CommunicationModuleProps {
-  userData?: { username?: string, email?: string, role?: string } | null;
+  userData?: { id?: number, username?: string, email?: string, role?: string } | null;
 }
 
 export const CommunicationModule = ({ userData }: CommunicationModuleProps) => {
@@ -15,6 +15,8 @@ export const CommunicationModule = ({ userData }: CommunicationModuleProps) => {
   const role = userData?.role?.toLowerCase() || 'farmer';
   const isOfficer = role.includes('officer') || role.includes('admin');
   const isResearcher = role.includes('researcher');
+  const currentUserId = userData?.id;
+  const currentUsername = userData?.username;
 
   const [activeTab, setActiveTab] = useState<'farmers' | 'researchers' | 'officers' | 'broadcasts'>(() => {
     if (isOfficer) return 'farmers';
@@ -34,15 +36,15 @@ export const CommunicationModule = ({ userData }: CommunicationModuleProps) => {
 
   const availableTabs: { id: 'farmers' | 'researchers' | 'officers' | 'broadcasts', label: string, icon: any }[] = [];
   if (isOfficer) {
-    availableTabs.push({ id: 'farmers', label: t('farmersLabel'), icon: Users });
-    availableTabs.push({ id: 'researchers', label: t('researchersLabel'), icon: UserCog });
-    availableTabs.push({ id: 'officers', label: t('agriOfficersLabel'), icon: UserCog });
+    availableTabs.push({ id: 'farmers', label: t('farmersLabel') || 'Farmers', icon: Users });
+    availableTabs.push({ id: 'researchers', label: t('researchersLabel') || 'Researchers', icon: UserCog });
+    availableTabs.push({ id: 'officers', label: t('agriOfficersLabel') || 'Agri Officers', icon: UserCog });
   } else if (isResearcher) {
-    availableTabs.push({ id: 'officers', label: t('agriOfficersLabel'), icon: UserCog });
-    availableTabs.push({ id: 'researchers', label: t('researchersLabel'), icon: Users });
+    availableTabs.push({ id: 'officers', label: t('agriOfficersLabel') || 'Agri Officers', icon: UserCog });
+    availableTabs.push({ id: 'researchers', label: t('researchersLabel') || 'Researchers', icon: Users });
   } else {
-    availableTabs.push({ id: 'farmers', label: t('farmersLabel'), icon: Users });
-    availableTabs.push({ id: 'officers', label: t('agriOfficersLabel'), icon: UserCog });
+    availableTabs.push({ id: 'farmers', label: t('farmersLabel') || 'Farmers', icon: Users });
+    availableTabs.push({ id: 'officers', label: t('agriOfficersLabel') || 'Agri Officers', icon: UserCog });
     availableTabs.push({ id: 'broadcasts', label: 'Broadcasts', icon: Bell });
   }
 
@@ -68,6 +70,12 @@ export const CommunicationModule = ({ userData }: CommunicationModuleProps) => {
   const [editBroadcastText, setEditBroadcastText] = useState('');
   const broadcastsLenRef = useRef(0);
   const [unreadBroadcasts, setUnreadBroadcasts] = useState(0);
+  const [tabUnread, setTabUnread] = useState<{ farmers: number, researchers: number, officers: number, broadcasts: number }>({
+    farmers: 0,
+    researchers: 0,
+    officers: 0,
+    broadcasts: 0
+  });
   const activeTabRef = useRef(activeTab);
 
   // Set of read message identifiers: { [escKey]: last_msg_id or lastMsg text }
@@ -106,7 +114,7 @@ export const CommunicationModule = ({ userData }: CommunicationModuleProps) => {
     }
 
     // If there is no message, it's not unread
-    if (!contact.lastMsg || contact.lastMsg === 'No active cases') {
+    if (!contact.lastMsg || contact.lastMsg === 'No active cases' || contact.lastMsg === 'No active conversation') {
       return false;
     }
 
@@ -264,6 +272,63 @@ export const CommunicationModule = ({ userData }: CommunicationModuleProps) => {
     }
   };
 
+  const checkTabUnreadCounts = async () => {
+    try {
+      const token = localStorage.getItem('access_token') || localStorage.getItem('token');
+      if (!token) return;
+      const headers = { 'Authorization': `Bearer ${token}` };
+
+      const tabsToCheck: ('farmers' | 'researchers' | 'officers')[] = ['farmers', 'researchers', 'officers'];
+      const results = await Promise.all(
+        tabsToCheck.map(tab => 
+          fetch(`http://127.0.0.1:8000/api/escalation/contacts/?type=${tab}`, { headers })
+            .then(res => res.ok ? res.json() : [])
+            .catch(() => [])
+        )
+      );
+
+      const newCounts = {
+        farmers: 0,
+        researchers: 0,
+        officers: 0,
+        broadcasts: unreadBroadcasts
+      };
+
+      tabsToCheck.forEach((tab, index) => {
+        const contactList = results[index] || [];
+        if (tab === activeTabRef.current) {
+          setContacts(prev => {
+            contactList.forEach((c: any) => {
+              const prevContact = prev.find(p => p.id === c.id || p.esc_id === c.esc_id);
+              if (c.is_incoming && c.last_msg_id) {
+                const wasRead = prevContact ? !isContactUnread(prevContact) : true;
+                const isNowUnread = isContactUnread(c);
+                if (wasRead && isNowUnread && (!selectedContact || (selectedContact.esc_id !== c.esc_id && selectedContact.id !== c.id))) {
+                  toast.info(`New message from ${c.name}`, {
+                    description: c.lastMsg,
+                    duration: 5000
+                  });
+                  playReceiveSound();
+                }
+              }
+            });
+            return contactList;
+          });
+        }
+        
+        let unreadCount = 0;
+        contactList.forEach((c: any) => {
+          if (isContactUnread(c)) {
+            unreadCount++;
+          }
+        });
+        newCounts[tab] = unreadCount;
+      });
+
+      setTabUnread(prev => ({ ...prev, ...newCounts }));
+    } catch (e) {}
+  };
+
   const fetchContacts = async () => {
     setLoading(true);
     try {
@@ -295,18 +360,8 @@ export const CommunicationModule = ({ userData }: CommunicationModuleProps) => {
   // Background polling for new messages across all contacts in active tab
   useEffect(() => {
     if (activeTab === 'broadcasts') return;
-    const interval = setInterval(async () => {
-      try {
-        const token = localStorage.getItem('access_token') || localStorage.getItem('token');
-        const response = await fetch(`http://127.0.0.1:8000/api/escalation/contacts/?type=${activeTab}`, {
-          headers: { 'Authorization': `Bearer ${token}` }
-        });
-        if (response.ok) {
-          const fetchedContacts = await response.json();
-          setContacts(fetchedContacts);
-        }
-      } catch (e) {}
-    }, 4000);
+    checkTabUnreadCounts();
+    const interval = setInterval(checkTabUnreadCounts, 4000);
     return () => clearInterval(interval);
   }, [activeTab, selectedContact?.esc_id, selectedContact?.id]);
 
@@ -335,7 +390,11 @@ export const CommunicationModule = ({ userData }: CommunicationModuleProps) => {
         if (messagesLenRef.current > 0 && fetchedMessages.length > messagesLenRef.current) {
           const newMsg = fetchedMessages[fetchedMessages.length - 1];
           const mySenderType = isOfficer ? 'officer' : (isResearcher ? 'researcher' : 'farmer');
-          if (newMsg.sender_type !== mySenderType) {
+          const isMyMsg = (newMsg.sender_id !== undefined && newMsg.sender_id !== null && currentUserId)
+            ? (newMsg.sender_id === currentUserId)
+            : (newMsg.sender_username && currentUsername ? newMsg.sender_username === currentUsername : (newMsg.sender_type === mySenderType));
+
+          if (!isMyMsg) {
             toast.success(`${contact.name} sent a new message!`);
             playReceiveSound();
           }
@@ -404,6 +463,8 @@ export const CommunicationModule = ({ userData }: CommunicationModuleProps) => {
 
     const tempMsg = {
       id: tempId,
+      sender_id: currentUserId,
+      sender_username: currentUsername,
       sender_type: mySenderType,
       text: originalText,
       time: formattedTime,
@@ -447,17 +508,11 @@ export const CommunicationModule = ({ userData }: CommunicationModuleProps) => {
           setMessages(prev => prev.map(m => m.id === tempId ? { ...m, status: 'read' } : m));
         }, 1600);
         
-        // Refresh messages from server to sync state and any automated reply
+        // Refresh messages from server to sync state
         await fetchMessages(selectedContact);
 
         // Synchronize contact list with backend in background
-        const cRes = await fetch(`http://127.0.0.1:8000/api/escalation/contacts/?type=${activeTab}`, {
-          headers: { 'Authorization': `Bearer ${token}` }
-        });
-        if (cRes.ok) {
-          const updated = await cRes.json();
-          setContacts(updated);
-        }
+        checkTabUnreadCounts();
       } else {
         setMessages(prev => prev.filter(m => m.id !== tempId));
         toast.error(t('failedSendMessage'));
@@ -486,10 +541,10 @@ export const CommunicationModule = ({ userData }: CommunicationModuleProps) => {
         // Update contact preview in list
         setContacts(prev => prev.map(c => 
           (c.esc_id === selectedContact.esc_id || (selectedContact.id && c.id === selectedContact.id))
-            ? { ...c, lastMsg: "No active cases", time: "Active", unread: 0 }
+            ? { ...c, lastMsg: "No active conversation", time: "Active", unread: 0 }
             : c
         ));
-        setSelectedContact((prev: any) => prev ? { ...prev, lastMsg: "No active cases", time: "Active", unread: 0 } : prev);
+        setSelectedContact((prev: any) => prev ? { ...prev, lastMsg: "No active conversation", time: "Active", unread: 0 } : prev);
         setShowDeleteConfirm(false);
       } else {
         toast.error("Failed to delete conversation");
@@ -596,6 +651,11 @@ export const CommunicationModule = ({ userData }: CommunicationModuleProps) => {
                     {tab.id === 'broadcasts' && unreadBroadcasts > 0 && (
                       <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 text-white text-[9px] font-black flex items-center justify-center rounded-full animate-bounce shadow-md">
                         {unreadBroadcasts}
+                      </span>
+                    )}
+                    {tab.id !== 'broadcasts' && tabUnread[tab.id] > 0 && (
+                      <span className="absolute -top-1 -right-1 w-4 h-4 bg-amber-500 text-white text-[9px] font-black flex items-center justify-center rounded-full animate-bounce shadow-md">
+                        {tabUnread[tab.id]}
                       </span>
                     )}
                   </button>
@@ -708,8 +768,14 @@ export const CommunicationModule = ({ userData }: CommunicationModuleProps) => {
                       )}
                     </div>
                     <div className="flex items-center justify-between pt-2 border-t border-dashed border-gray-100 dark:border-gray-800">
-                      <span className="text-[9px] font-extrabold text-[#2E7D32] dark:text-green-400 uppercase tracking-widest bg-green-50 dark:bg-green-950/30 px-2 py-0.5 rounded-md">
-                        {activeTab === 'farmers' ? 'Farmer' : activeTab === 'researchers' ? 'Researcher' : 'Agri Officer'}
+                      <span className={`text-[9px] font-extrabold uppercase tracking-widest px-2 py-0.5 rounded-md ${
+                        contact.role === 'farmer' || activeTab === 'farmers'
+                          ? 'text-[#2E7D32] dark:text-green-400 bg-green-50 dark:bg-green-950/30'
+                          : contact.role === 'researcher' || activeTab === 'researchers'
+                          ? 'text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/30'
+                          : 'text-purple-600 dark:text-purple-400 bg-purple-50 dark:bg-purple-950/30'
+                      }`}>
+                        {contact.role === 'farmer' || activeTab === 'farmers' ? 'Farmer' : contact.role === 'researcher' || activeTab === 'researchers' ? 'Researcher' : 'Agri Officer'}
                       </span>
                       <div className="flex items-center gap-1">
                         <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse shadow-[0_0_4px_rgba(34,197,94,0.5)]"></span>
@@ -749,13 +815,13 @@ export const CommunicationModule = ({ userData }: CommunicationModuleProps) => {
               <div className="p-6 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between bg-card shadow-sm sticky top-0 z-10">
                  <div className="flex items-center gap-4">
                      <div className={`w-12 h-12 rounded-2xl flex items-center justify-center font-black text-xl ${
-                       activeTab === 'farmers' 
+                       selectedContact?.role === 'farmer' || activeTab === 'farmers'
                          ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400' 
-                         : activeTab === 'researchers'
+                         : selectedContact?.role === 'researcher' || activeTab === 'researchers'
                          ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400'
                          : 'bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400'
                      }`}>
-                       {selectedContact.name ? selectedContact.name.substring(0, 2) : '??'}
+                       {selectedContact.name ? selectedContact.name.substring(0, 2).toUpperCase() : '??'}
                      </div>
                      <div>
                        <h4 className="font-black text-gray-900 dark:text-white">{selectedContact.name}</h4>
@@ -764,7 +830,7 @@ export const CommunicationModule = ({ userData }: CommunicationModuleProps) => {
                        <p className="text-[10px] font-black text-green-600 dark:text-green-400 uppercase tracking-wider">Online</p>
                        <span className="text-gray-300 dark:text-gray-700">•</span>
                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">
-                         {activeTab === 'farmers' ? 'Farmer' : activeTab === 'researchers' ? 'Researcher' : 'Agri Officer'} ({selectedContact.location || 'Colombo'})
+                         {selectedContact?.role === 'farmer' || activeTab === 'farmers' ? 'Farmer' : selectedContact?.role === 'researcher' || activeTab === 'researchers' ? 'Researcher' : 'Agri Officer'} ({selectedContact.location || 'Active'})
                        </p>
                      </div>
                    </div>
@@ -806,9 +872,13 @@ export const CommunicationModule = ({ userData }: CommunicationModuleProps) => {
                   </div>
                 ) : (
                   messages.map((msg) => {
-                    const isMyMessage = (msg.sender_type === 'officer' && isOfficer) || 
-                                        (msg.sender_type === 'farmer' && !isOfficer && !isResearcher) || 
-                                        (msg.sender_type === 'researcher' && isResearcher);
+                    const isMyMessage = (msg.sender_id !== undefined && msg.sender_id !== null && currentUserId)
+                      ? (msg.sender_id === currentUserId)
+                      : (msg.sender_username && currentUsername ? msg.sender_username === currentUsername : (
+                          (msg.sender_type === 'officer' && isOfficer) || 
+                          (msg.sender_type === 'farmer' && !isOfficer && !isResearcher) || 
+                          (msg.sender_type === 'researcher' && isResearcher)
+                        ));
                     return (
                       <div key={msg.id} className={`flex ${isMyMessage ? 'justify-end' : 'justify-start'}`}>
                         <div className={`max-w-[70%] p-4 rounded-3xl text-sm shadow-sm ${

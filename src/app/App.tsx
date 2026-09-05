@@ -67,21 +67,63 @@ export default function App() {
 
   useEffect(() => {
     if (isAuthenticated) {
-      const fetchProfile = async () => {
+      const fetchProfileAndSettings = async () => {
         try {
           const token = localStorage.getItem('access_token');
-          const response = await fetch('http://127.0.0.1:8000/api/auth/profile/', {
-            headers: {
-              'Authorization': `Bearer ${token}`
-            }
-          });
-          if (response.status === 401) {
+          const headers = { 'Authorization': `Bearer ${token}` };
+
+          // Fetch profile AND settings in parallel so we can apply theme/language
+          // before the main UI is ever shown to the user
+          const [profileRes, settingsRes] = await Promise.all([
+            fetch('http://127.0.0.1:8000/api/auth/profile/', { headers }),
+            fetch('http://127.0.0.1:8000/api/settings/', { headers }),
+          ]);
+
+          if (profileRes.status === 401 || settingsRes.status === 401) {
             handleLogout(true);
             setIsProfileLoading(false);
             return;
           }
-          if (response.ok) {
-            const data = await response.json();
+
+          // ── Apply settings first so theme/language are correct before UI renders ──
+          if (settingsRes.ok) {
+            const settings = await settingsRes.json();
+
+            // Theme
+            const resolvedTheme = settings.theme_preference || localStorage.getItem('theme_preference') || 'light';
+            localStorage.setItem('theme_preference', resolvedTheme);
+            if (resolvedTheme === 'dark') {
+              document.documentElement.classList.add('dark');
+            } else {
+              document.documentElement.classList.remove('dark');
+            }
+
+            // Language
+            const lang = settings.language || 'en';
+            localStorage.setItem('language_preference', lang);
+            window.dispatchEvent(new CustomEvent('watermelon-language-change', { detail: lang }));
+
+            // Location & alerts (for other modules that read from localStorage)
+            if (settings.latitude)  localStorage.setItem('default_latitude',  String(settings.latitude));
+            if (settings.longitude) localStorage.setItem('default_longitude', String(settings.longitude));
+            localStorage.setItem('broadcast_alerts', String(settings.broadcast_alerts ?? true));
+          }
+
+          // ── Apply profile ──
+          if (profileRes.ok) {
+            const data = await profileRes.json();
+
+            // If settings fetch failed, fall back to theme stored in profile
+            if (!settingsRes.ok && data.theme_preference) {
+              const resolvedTheme = data.theme_preference || localStorage.getItem('theme_preference') || 'light';
+              localStorage.setItem('theme_preference', resolvedTheme);
+              if (resolvedTheme === 'dark') {
+                document.documentElement.classList.add('dark');
+              } else {
+                document.documentElement.classList.remove('dark');
+              }
+            }
+
             setUserData(data);
 
             // Alert user if account is restricted
@@ -114,16 +156,6 @@ export default function App() {
               });
             }
 
-            // Apply theme preference from profile and save to localStorage
-            if (data.theme_preference) {
-              localStorage.setItem('theme_preference', data.theme_preference);
-              if (data.theme_preference === 'dark') {
-                document.documentElement.classList.add('dark');
-              } else {
-                document.documentElement.classList.remove('dark');
-              }
-            }
-
             // Apply role-based section validation
             const roleLower = data.role?.toLowerCase() || '';
             const isAdminUser = roleLower === 'admin' || roleLower === 'superadmin' || data.is_superuser === true;
@@ -146,12 +178,12 @@ export default function App() {
             }
           }
         } catch (error) {
-          console.error("Failed to fetch profile", error);
+          console.error("Failed to fetch profile/settings", error);
         } finally {
           setIsProfileLoading(false);
         }
       };
-      fetchProfile();
+      fetchProfileAndSettings();
     } else {
       setUserData(null);
       setIsProfileLoading(false);
@@ -165,6 +197,25 @@ export default function App() {
     };
     window.addEventListener('watermelon-auth-error', handleAuthError);
     return () => window.removeEventListener('watermelon-auth-error', handleAuthError);
+  }, []);
+
+  // Global listener for profile updates from Settings
+  useEffect(() => {
+    const handleProfileUpdated = (e: CustomEvent) => {
+      if (e.detail) {
+        setUserData(prev => ({ ...prev, ...e.detail }));
+        if (e.detail.theme_preference) {
+          localStorage.setItem('theme_preference', e.detail.theme_preference);
+          if (e.detail.theme_preference === 'dark') {
+            document.documentElement.classList.add('dark');
+          } else {
+            document.documentElement.classList.remove('dark');
+          }
+        }
+      }
+    };
+    window.addEventListener('watermelon-profile-updated', handleProfileUpdated as EventListener);
+    return () => window.removeEventListener('watermelon-profile-updated', handleProfileUpdated as EventListener);
   }, []);
 
   const getInitialAuthMode = (): 'landing' | 'login' | 'register' | 'forgot-password' | 'reset-password' | 'verify-email' => {
@@ -268,9 +319,14 @@ export default function App() {
       const newTheme = e.detail || localStorage.getItem('theme_preference') || 'light';
       if (newTheme === 'dark') {
         document.documentElement.classList.add('dark');
+        document.documentElement.style.colorScheme = 'dark';
+        document.documentElement.style.backgroundColor = '#111827';
       } else {
         document.documentElement.classList.remove('dark');
+        document.documentElement.style.colorScheme = 'light';
+        document.documentElement.style.backgroundColor = '#ffffff';
       }
+      setUserData(prev => prev ? { ...prev, theme_preference: newTheme } : null);
     };
     window.addEventListener('watermelon-theme-change', handleThemeChange);
     return () => window.removeEventListener('watermelon-theme-change', handleThemeChange);
@@ -283,14 +339,20 @@ export default function App() {
 
     if (isAuthPage) {
       document.documentElement.classList.remove('dark');
+      document.documentElement.style.colorScheme = 'light';
+      document.documentElement.style.backgroundColor = '#ffffff';
       return;
     }
 
     const savedTheme = localStorage.getItem('theme_preference') || 'light';
     if (savedTheme === 'dark') {
       document.documentElement.classList.add('dark');
+      document.documentElement.style.colorScheme = 'dark';
+      document.documentElement.style.backgroundColor = '#111827';
     } else {
       document.documentElement.classList.remove('dark');
+      document.documentElement.style.colorScheme = 'light';
+      document.documentElement.style.backgroundColor = '#ffffff';
     }
   }, [isAuthenticated, authMode, activeSection]);
 
@@ -398,10 +460,36 @@ export default function App() {
 
   if (isProfileLoading) {
     return (
-      <div className="flex h-screen items-center justify-center bg-gray-50 dark:bg-gray-900">
-        <div className="flex flex-col items-center">
-          <div className="w-12 h-12 border-4 border-[#2E7D32] border-t-transparent rounded-full animate-spin mb-4 shadow-lg"></div>
-          <p className="text-gray-500 dark:text-gray-400 font-bold tracking-widest text-xs uppercase animate-pulse">Loading Profile</p>
+      <div className="flex h-screen items-center justify-center bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100">
+        <div className="flex flex-col items-center gap-6">
+          {/* Logo / brand mark */}
+          <div className="w-16 h-16 rounded-2xl bg-[#2E7D32]/10 dark:bg-[#2E7D32]/20 border-2 border-[#2E7D32]/20 dark:border-[#2E7D32]/40 flex items-center justify-center">
+            <div className="w-8 h-8 border-4 border-[#2E7D32] border-t-transparent rounded-full animate-spin" />
+          </div>
+
+          <div className="text-center space-y-1.5">
+            <p className="text-gray-900 dark:text-white font-black text-base tracking-tight">WatermelonAI</p>
+            <p className="text-[#2E7D32] dark:text-green-400 font-bold tracking-widest text-[10px] uppercase animate-pulse">
+              Loading your account…
+            </p>
+          </div>
+
+          {/* Progress steps */}
+          <div className="flex flex-col gap-2 w-56">
+            {[
+              'Verifying session',
+              'Loading account settings',
+              'Applying preferences',
+            ].map((step, i) => (
+              <div key={i} className="flex items-center gap-3">
+                <div
+                  className="w-1.5 h-1.5 rounded-full bg-[#2E7D32] dark:bg-green-400 animate-pulse"
+                  style={{ animationDelay: `${i * 0.25}s` }}
+                />
+                <span className="text-xs text-gray-400 dark:text-gray-400 font-medium">{step}</span>
+              </div>
+            ))}
+          </div>
         </div>
       </div>
     );
@@ -458,11 +546,13 @@ export default function App() {
                     {userData ? (userData.username || userData.email) : 'Loading...'}
                   </p>
                   <p className="text-xs text-[#2E7D32] font-semibold uppercase tracking-wider">
-                    {isAdmin ? 'System Administrator' : (
-                      userData?.role === 'agri_officer' || userData?.role === 'officer' ? 'Agri Officer Account' :
-                        userData?.role === 'researcher' ? 'Researcher Account' :
-                          userData?.role === 'farmer' ? 'Farmer Account' :
-                            'WatermelonAI User'
+                    {userData?.is_superuser || userData?.role === 'superadmin' ? 'Super Administrator' : (
+                      isAdmin ? 'System Administrator' : (
+                        userData?.role === 'agri_officer' || userData?.role === 'officer' ? 'Agri Officer Account' :
+                          userData?.role === 'researcher' ? 'Researcher Account' :
+                            userData?.role === 'farmer' ? 'Farmer Account' :
+                              'WatermelonAI User'
+                      )
                     )}
                   </p>
                 </div>
@@ -608,7 +698,7 @@ export default function App() {
           )}
 
           {activeSection === 'settings' && (
-            <SettingsModule />
+            <SettingsModule userData={userData} />
           )}
         </div>
       </main>
